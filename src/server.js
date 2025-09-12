@@ -5,6 +5,7 @@ import bodyParser from "body-parser";
 import connectDB from "./config/db.js";
 import AuthRoutes from "./routes/AuthRoutes.js";
 import PaymentRoutes from "./routes/paymentRoutes.js";
+import planRoutes from "./routes/planRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -24,6 +25,8 @@ app.use((req, res, next) => {
 
 app.use("/api/auth", AuthRoutes);
 app.use("/api/payment", PaymentRoutes);
+// ... other app.use
+app.use("/api/plans", planRoutes);
 
 
 app.get("/", (req, res) => res.send("🚀 Backend running!"));
