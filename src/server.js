@@ -25,6 +25,7 @@ app.use((req, res, next) => {
 app.use("/api/auth", AuthRoutes);
 app.use("/api/payment", PaymentRoutes);
 
+
 app.get("/", (req, res) => res.send("🚀 Backend running!"));
 
 const PORT = process.env.PORT || 5000;
