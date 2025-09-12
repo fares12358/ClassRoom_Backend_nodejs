@@ -1,12 +1,12 @@
 import mongoose from "mongoose";
 
-const PendingUserSchema = new mongoose.Schema({
-  name: String,
+const pendingUserSchema = new mongoose.Schema({
+  name: { type: String, required: true },
   email: { type: String, required: true },
-  phone: String,
-  password: String, // hashed
-  planId: String,
+  phone: { type: String },
+  password: { type: String, required: true },
+  planId: { type: mongoose.Schema.Types.ObjectId, ref: "Plan", required: true },
   createdAt: { type: Date, default: Date.now },
 });
 
-export default mongoose.model("PendingUser", PendingUserSchema);
+export default mongoose.model("PendingUser", pendingUserSchema);

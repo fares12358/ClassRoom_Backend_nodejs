@@ -1,49 +1,44 @@
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
-import User from '../models/Users.js';
-import { generateAccessToken } from '../utils/tokens.js';
-import sendEmail from '../utils/sendEmail.js';
-import PendingUserSchema from '../models/PendingUser.js';
+import bcrypt from "bcrypt";
+import User from "../models/Users.js";
+import PendingUser from "../models/PendingUser.js";
+import Plan from "../models/Plan.js";
+import { generateAccessToken } from "../utils/tokens.js";
 
-export const loginUser = async (req, res) => {
-  const { email, password } = req.body;
+/**
+ * Create pending user before payment
+ */
+export const createPendingUser = async (req, res) => {
+  const { name, email, phone, password, planId } = req.body;
+
   try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    const existing = await PendingUser.findOne({ email }) || await User.findOne({ email });
+    if (existing) return res.status(409).json({ message: "Email already registered" });
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+    const plan = await Plan.findById(planId);
+    if (!plan) return res.status(400).json({ message: "Invalid plan selected" });
 
-    // Generate only access token
-    const accessToken = generateAccessToken(user);
+    const hashed = await bcrypt.hash(password, 10);
+    const pendingUser = new PendingUser({ name, email, phone, password: hashed, planId });
+    await pendingUser.save();
 
-    // Save access token in DB (optional)
-    user.accessToken = accessToken;
-    await user.save();
-
-    // Remove sensitive fields before sending response
-    const { password: _, accessToken: __, ...safeUser } = user.toObject();
-
-    res.status(200).json({
-      message: "Login successful",
-      accessToken, // only access token returned
-      user: safeUser,
-    });
-
-  } catch (error) {
-    res.status(500).json({ message: "Login error", error: error.message });
+    res.status(201).json({ message: "Pending user created", pendingId: pendingUser._id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 
+/**
+ * Check signup status using pendingId
+ */
 export const getSignupStatus = async (req, res) => {
   try {
     const { pendingId } = req.params;
+    const pending = await PendingUser.findById(pendingId).populate("planId");
 
-    const pending = await PendingUserSchema.findById(pendingId);
-    if (pending) return res.json({ status: "pending" });
+    if (pending) return res.json({ status: "pending", plan: pending.planId });
 
-    const user = await User.findOne({ _id: pendingId });
-    if (user) return res.json({ status: "created", user: { id: user._id, email: user.email } });
+    const user = await User.findById(pendingId);
+    if (user) return res.json({ status: "active", user: { id: user._id, email: user.email } });
 
     res.json({ status: "not_found" });
   } catch (err) {
@@ -51,37 +46,29 @@ export const getSignupStatus = async (req, res) => {
   }
 };
 
-
-export const registerUser = async (req, res) => {
-  const { name, email, password } = req.body;
-
+/**
+ * Login only active users
+ */
+export const loginUser = async (req, res) => {
+  const { email, password } = req.body;
   try {
-    const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(409).json({ message: 'Email already registered' });
+    const user = await User.findOne({ email, status: "active" });
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ name, email, password: hashedPassword });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
 
-    user.accessToken = accessToken;
-    user.refreshToken = refreshToken;
-
-    await user.save();
-
-    res.status(201).json({
-      message: 'Registration successful',
+    res.status(200).json({
+      message: "Login successful",
       accessToken,
-      refreshToken,
       user: { id: user._id, name: user.name, email: user.email },
     });
-
   } catch (error) {
-    res.status(500).json({ message: 'Registration error', error: error.message });
+    res.status(500).json({ message: "Login error", error: error.message });
   }
 };
-
 
 
 export const forgotPassword = async (req, res) => {

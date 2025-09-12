@@ -5,7 +5,7 @@ import bodyParser from "body-parser";
 const router = express.Router();
 
 // ⚠️ Stripe needs raw body for webhook
-router.post("/webhook", bodyParser.raw({ type: "application/json" }), stripeWebhook);
+router.post("/api/payment/webhook", bodyParser.raw({ type: "application/json" }), stripeWebhook);
 
 // Checkout route
 router.post("/create-checkout-session", createCheckoutSession);
