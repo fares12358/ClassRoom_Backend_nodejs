@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import bodyParser from "body-parser";
 import connectDB from "./config/db.js";
-import AuthRoutes from "./routes/authRoutes.js";
+import AuthRoutes from "./routes/AuthRoutes.js";
 import PaymentRoutes from "./routes/paymentRoutes.js";
 
 dotenv.config();
