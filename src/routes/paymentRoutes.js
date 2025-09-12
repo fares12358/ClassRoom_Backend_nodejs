@@ -1,11 +1,13 @@
 import express from "express";
-import { handleWebhook, initSignup } from "../controllers/paymentController.js";
+import { createCheckoutSession, stripeWebhook } from "../controllers/paymentController.js";
+import bodyParser from "body-parser";
 
 const router = express.Router();
 
-router.post("/signup/init", initSignup);
+// ⚠️ Stripe needs raw body for webhook
+router.post("/webhook", bodyParser.raw({ type: "application/json" }), stripeWebhook);
 
-// Webhook requires raw body
-router.post("/webhook", express.raw({ type: "application/json" }), handleWebhook);
+// Checkout route
+router.post("/create-checkout-session", createCheckoutSession);
 
 export default router;

@@ -6,30 +6,40 @@ import AuthRoutes from './routes/AuthRoutes.js';
 import paymentRoutes from "./routes/paymentRoutes.js";
 import bodyParser from "body-parser";
 
+// ✅ Load env first
+dotenv.config();
+
 const PORT = process.env.PORT || 5000;
 const app = express();
-// Use JSON except for webhook
-app.use("/api/payment/webhook", bodyParser.raw({ type: "application/json" }));
-app.use(express.json());
 app.use(cors({
-  // origin: process.env.FRONT_BASE_URL, // ✅ Allow requests only from this origin (frontend)
-  // credentials: true                // ✅ Allow cookies, tokens, or headers like Authorization
+  origin: "*"
 }));
 
-dotenv.config();
-// Connect to MongoDB
+// ✅ Stripe webhook needs raw body
+app.use("/api/payment/webhook", bodyParser.raw({ type: "application/json" }));
+
+// ✅ Normal requests use JSON
+app.use((req, res, next) => {
+  if (req.originalUrl === "/api/payment/webhook") {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
+
+
+// ✅ Connect MongoDB
 connectDB();
 
-// Routes
-
-// Auth routes
+// ✅ Routes
 app.use('/api/auth', AuthRoutes);
 app.use("/api/payment", paymentRoutes);
 
 app.get('/', (req, res) => {
-  res.send('Hello, aamana Backend!');
+  res.send('🚀 Aamana Backend running with Stripe + Auth!');
 });
 
+// ✅ Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });

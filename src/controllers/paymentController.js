@@ -1,78 +1,55 @@
-import bcrypt from "bcrypt";
-import { stripe } from "../config/stripe.js";
-import PendingUser from "../models/PendingUser.js";
-import User from "../models/Users.js";
+import Stripe from "stripe";
 
-const PRICE_MAP = {
-  basic: 500, // $5.00 in cents
-  pro: 1500,  // $15.00 in cents
-};
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-export const initSignup = async (req, res) => {
+// ✅ Create checkout session
+export const createCheckoutSession = async (req, res) => {
   try {
-    const { name, email, phone, password, planId } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ message: "Missing fields" });
-
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(409).json({ message: "Email already registered" });
-
-    const hashed = await bcrypt.hash(password, 10);
-    const pending = await PendingUser.create({ name, email, phone, password: hashed, planId });
-
-    const amount = PRICE_MAP[planId] ?? PRICE_MAP.basic;
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: "usd",
-      metadata: { pendingUserId: pending._id.toString() },
-      automatic_payment_methods: { enabled: true },
-      receipt_email: email,
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "Test Product",
+            },
+            unit_amount: 2000, // $20.00
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: "http://localhost:5000/success",
+      cancel_url: "http://localhost:5000/cancel",
     });
 
-    res.json({
-      clientSecret: paymentIntent.client_secret,
-      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
-      pendingId: pending._id,
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.json({ url: session.url });
+  } catch (error) {
+    console.error("Stripe Checkout Error:", error);
+    res.status(500).json({ error: error.message });
   }
 };
 
-export const handleWebhook = async (req, res) => {
+// ✅ Webhook handler
+export const stripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-  } catch (err) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
 
-  if (event.type === "payment_intent.succeeded") {
-    const paymentIntent = event.data.object;
-    const pendingUserId = paymentIntent.metadata?.pendingUserId;
-
-    if (pendingUserId) {
-      const pending = await PendingUser.findById(pendingUserId);
-      if (pending) {
-        const already = await User.findOne({ email: pending.email });
-        if (!already) {
-          const user = new User({
-            name: pending.name,
-            email: pending.email,
-            phone: pending.phone,
-            password: pending.password,
-            paid: true,
-            stripePaymentIntentId: paymentIntent.id,
-          });
-          await user.save();
-        }
-        await PendingUser.findByIdAndDelete(pendingUserId);
-      }
+    if (event.type === "checkout.session.completed") {
+      console.log("✅ Payment successful:", event.data.object);
+      // TODO: Create user account in DB here
     }
-  }
 
-  res.json({ received: true });
+    res.json({ received: true });
+  } catch (err) {
+    console.error("⚠️ Webhook error:", err.message);
+    res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 };
