@@ -8,35 +8,23 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 /**
  * Add a new plan (with Stripe price)
  */
+
 export const addPlan = async (req, res) => {
   try {
-    let { title, price, duration, description, features } = req.body;
+    let { title, description, price, durationValue, durationType } = req.body;
 
-    if (!title || !price || !duration) {
-      return res.status(400).json({ message: "Title, price, and duration are required" });
+    if (!title || !price || !durationValue || !durationType) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
-    // ✅ Convert to cents (Stripe expects smallest unit)
     const amountInCents = Math.round(price * 100);
 
-    // ✅ Create a Stripe Price
-    const stripePrice = await stripe.prices.create({
-      unit_amount: amountInCents,
-      currency: "usd",
-      product_data: {
-        name: title,
-        description: description || "",
-      },
-    });
-
-    // ✅ Save in MongoDB
     const plan = new Plan({
       title,
-      price: amountInCents, // store in cents
-      duration,
       description,
-      features: features || [],
-      stripePriceId: stripePrice.id,
+      price: amountInCents,
+      durationValue,
+      durationType
     });
 
     await plan.save();
