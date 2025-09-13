@@ -77,6 +77,26 @@ export const stripeWebhook = async (req, res) => {
       const pendingUser = await PendingUser.findById(pendingId).populate("planId");
       if (!pendingUser) return res.sendStatus(404);
 
+
+      const plan = pendingUser.planId;
+
+      // Calculate expiration date based on plan
+      let expiresAt = new Date();
+      switch (plan.durationType) {
+        case "day":
+          expiresAt.setDate(expiresAt.getDate() + plan.durationValue);
+          break;
+        case "week":
+          expiresAt.setDate(expiresAt.getDate() + plan.durationValue * 7);
+          break;
+        case "month":
+          expiresAt.setMonth(expiresAt.getMonth() + plan.durationValue);
+          break;
+        case "year":
+          expiresAt.setFullYear(expiresAt.getFullYear() + plan.durationValue);
+          break;
+      }
+
       const newUser = new User({
         _id: pendingUser._id, // ✅ force same id
         name: pendingUser.name,
@@ -85,6 +105,7 @@ export const stripeWebhook = async (req, res) => {
         password: pendingUser.password,
         plan: pendingUser.planId._id,
         status: "active",
+        expiresAt, 
       });
 
       newUser.accessToken = generateAccessToken(newUser);

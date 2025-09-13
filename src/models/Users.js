@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema({
   status: { type: String, enum: ["pending", "active"], default: "pending" },
   accessToken: { type: String },
   createdAt: { type: Date, default: Date.now },
+  expiresAt: { type: Date },
 });
 
 export default mongoose.model("User", userSchema);

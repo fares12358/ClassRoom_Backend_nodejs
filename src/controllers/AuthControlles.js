@@ -58,24 +58,39 @@ export const getSignupStatus = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 /**
  * Login only active users
  */
+
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await User.findOne({ email, status: "active" });
+    const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ message: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+
+    // Check if subscription expired
+    if (user.expiresAt && new Date() > user.expiresAt) {
+      user.status = "pending"; // expire account
+      await user.save();
+    }
 
     const accessToken = generateAccessToken(user);
 
     res.status(200).json({
       message: "Login successful",
       accessToken,
-      user: { id: user._id, name: user.name, email: user.email },
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        status: user.status,
+        plan: user.plan,
+        expiresAt: user.expiresAt,
+      },
     });
   } catch (error) {
     res.status(500).json({ message: "Login error", error: error.message });
