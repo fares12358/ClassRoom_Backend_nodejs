@@ -26,6 +26,20 @@ export const createPendingUser = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+export const getPendingUser = async (req, res) => {
+  try {
+    const { pendingId } = req.params;
+    const pendingUser = await PendingUser.findById(pendingId).populate("planId");
+
+    if (!pendingUser) {
+      return res.status(404).json({ message: "Pending payment not found" });
+    }
+
+    res.status(200).json(pendingUser);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching pending payment", error: error.message });
+  }
+}
 
 /**
  * Check signup status using pendingId

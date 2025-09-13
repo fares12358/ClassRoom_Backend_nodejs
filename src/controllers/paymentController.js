@@ -100,7 +100,6 @@ export const stripeWebhook = async (req, res) => {
       );
 
       await PendingUser.findByIdAndDelete(pendingId);
-
       await sendPaymentSuccessEmail(newUser);
     }
 

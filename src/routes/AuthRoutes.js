@@ -1,10 +1,11 @@
 import express from 'express';
-import { loginUser, getSignupStatus, createPendingUser, forgotPassword, resetPassword } from '../controllers/AuthControlles.js';
+import { loginUser, getSignupStatus, createPendingUser, forgotPassword, resetPassword, getPendingUser } from '../controllers/AuthControlles.js';
 
 const router = express.Router();
 
 
 router.post("/pending", createPendingUser); // create pending user before payment
+router.get("/pending/:pendingId", getPendingUser); // check signup status
 router.get("/status/:pendingId", getSignupStatus); // check signup status
 router.post("/login", loginUser); // login active users
 
