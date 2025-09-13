@@ -29,8 +29,8 @@ export const createCheckoutSession = async (req, res) => {
         quantity: 1,
       }],
       metadata: { pendingId: pendingUser._id.toString() },
-      success_url: `${process.env.FRONTEND_URL}/success?pendingId=${pendingUser._id}`,
-      cancel_url: `${process.env.FRONTEND_URL}/cancel?pendingId=${pendingUser._id}`,
+      success_url: `${process.env.FRONTEND_URL}/Pages/success?pendingId=${pendingUser._id}`,
+      cancel_url: `${process.env.FRONTEND_URL}/Pages/cancel?pendingId=${pendingUser._id}`,
     });
 
     res.json({ url: session.url });
@@ -51,6 +51,7 @@ export const stripeWebhook = async (req, res) => {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const pendingId = session.metadata.pendingId;
+
       const pendingUser = await PendingUser.findById(pendingId).populate("planId");
       if (!pendingUser) return res.sendStatus(404);
 
@@ -69,7 +70,6 @@ export const stripeWebhook = async (req, res) => {
 
       console.log(`✅ User ${newUser.email} activated after payment`);
     }
-
     res.status(200).json({ received: true });
   } catch (err) {
     console.error("Webhook error:", err.message);
