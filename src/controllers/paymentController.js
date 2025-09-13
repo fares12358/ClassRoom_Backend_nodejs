@@ -4,7 +4,7 @@ import User from "../models/Users.js";
 import { generateAccessToken } from "../utils/tokens.js";
 import dotenv from "dotenv";
 import Transaction from "../models/Transaction.js";
-import { sendPendingPaymentEmail } from "./emailController.js";
+import { sendPaymentSuccessEmail, sendPendingPaymentEmail } from "./emailController.js";
 dotenv.config(); // MUST be first line
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
