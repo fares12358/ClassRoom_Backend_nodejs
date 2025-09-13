@@ -46,7 +46,11 @@ export const createCheckoutSession = async (req, res) => {
 export const stripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
   try {
-    const event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
@@ -56,6 +60,7 @@ export const stripeWebhook = async (req, res) => {
       if (!pendingUser) return res.sendStatus(404);
 
       const newUser = new User({
+        _id: pendingUser._id, // ✅ force same id
         name: pendingUser.name,
         email: pendingUser.email,
         phone: pendingUser.phone,
@@ -70,9 +75,11 @@ export const stripeWebhook = async (req, res) => {
 
       console.log(`✅ User ${newUser.email} activated after payment`);
     }
+
     res.status(200).json({ received: true });
   } catch (err) {
     console.error("Webhook error:", err.message);
     res.status(400).send(`Webhook Error: ${err.message}`);
   }
 };
+
