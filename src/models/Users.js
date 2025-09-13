@@ -10,6 +10,8 @@ const userSchema = new mongoose.Schema({
   accessToken: { type: String },
   createdAt: { type: Date, default: Date.now },
   expiresAt: { type: Date },
+  resetOTP: { type: String },          // ✅ store OTP
+  resetOTPExpires: { type: Date },
 });
 
 export default mongoose.model("User", userSchema);

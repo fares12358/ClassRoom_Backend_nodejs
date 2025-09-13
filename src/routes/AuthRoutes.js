@@ -8,7 +8,6 @@ router.get("/pending/:pendingId", getPendingUser); // get pendinguse for cancel 
 router.get("/status/:pendingId", getSignupStatus); // check signup status
 
 router.post("/login", loginUser); // login active users
-
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 

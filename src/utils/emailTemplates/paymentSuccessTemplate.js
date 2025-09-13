@@ -19,7 +19,7 @@ export const paymentSuccessTemplate = (user) => {
                 </td>
               </tr>
               
-              <!-- Body -->
+              <!-- Body --> 
               <tr>
                 <td style="padding:30px; color:#333;">
                   <h2 style="margin-top:0;">🎉 Account Activated!</h2>

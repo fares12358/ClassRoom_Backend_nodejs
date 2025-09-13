@@ -2,6 +2,7 @@ import sendEmail from "../utils/sendEmail.js";
 import welcomeTemplate from "../utils/emailTemplates/welcomeTemplate.js";
 import { pendingPaymentTemplate } from "../utils/emailTemplates/pendingPaymentTemplate.js";
 import { paymentSuccessTemplate } from "../utils/emailTemplates/paymentSuccessTemplate.js";
+import { otpTemplate } from "../utils/emailTemplates/otpTemplate.js";
 
 /**
  * Send a general welcome email
@@ -48,6 +49,17 @@ export const sendPendingPaymentEmail = async (user, checkoutUrl) => {
 export const sendPaymentSuccessEmail = async (user) => {
   try {
     const html = paymentSuccessTemplate(user);
+
+    await sendEmail(user.email, "Your Account is Now Active 🎉", html);
+
+  } catch (error) {
+    console.error("Send Payment Success Email Error:", error.message);
+  }
+};
+
+export const sendOTPEmail = async (user ,otp, resetLink) => {
+  try {
+    const html = otpTemplate(user ,otp, resetLink);
 
     await sendEmail(user.email, "Your Account is Now Active 🎉", html);
 
