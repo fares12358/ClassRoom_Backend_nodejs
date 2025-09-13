@@ -12,6 +12,8 @@ const userSchema = new mongoose.Schema({
   expiresAt: { type: Date },
   resetOTP: { type: String },          // ✅ store OTP
   resetOTPExpires: { type: Date },
+  
 });
 
 export default mongoose.model("User", userSchema);
+ 

@@ -98,6 +98,7 @@ export const loginUser = async (req, res) => {
   }
 };
 
+
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
@@ -151,3 +152,4 @@ export const resetPassword = async (req, res) => {
     res.status(500).json({ message: "Reset failed", error: error.message });
   }
 };
+
