@@ -145,7 +145,7 @@ export const retryPayment = async (req, res) => {
     });
 
     // 3. Save latest sessionId for tracking
-    transaction.sessionId = session.id;
+    transaction.stripeSessionId = session.id;
     await transaction.save();
 
     res.json({ url: session.url });
