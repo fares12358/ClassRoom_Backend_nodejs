@@ -40,7 +40,6 @@ export const getPendingUser = async (req, res) => {
     res.status(500).json({ message: "Error fetching pending payment", error: error.message });
   }
 }
-
 /**
  * Check signup status using pendingId
  */
@@ -59,7 +58,6 @@ export const getSignupStatus = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
 /**
  * Login only active users
  */
