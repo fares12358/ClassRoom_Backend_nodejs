@@ -12,6 +12,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 /**
  * Create checkout session
  */
+
 export const createCheckoutSession = async (req, res) => {
   try {
     const { pendingId } = req.body;
@@ -25,7 +26,7 @@ export const createCheckoutSession = async (req, res) => {
       line_items: [{
         price_data: {
           currency: "usd",
-          product_data: { name: pendingUser.planId.name },
+          product_data: { name: pendingUser.planId.title },
           unit_amount: pendingUser.planId.price,
         },
         quantity: 1,
@@ -132,7 +133,7 @@ export const retryPayment = async (req, res) => {
         {
           price_data: {
             currency: "usd",
-            product_data: { name: pendingUser.planId.name },
+            product_data: { name: pendingUser.planId.title },
             unit_amount: pendingUser.planId.price, // ⚠️ Make sure stored in cents
           },
           quantity: 1,
