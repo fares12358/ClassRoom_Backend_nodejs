@@ -1,10 +1,10 @@
-export const paymentSuccessTemplate = (user, transaction) => {
+export const paymentSuccessTemplate = (user) => {
   return `
   <!DOCTYPE html>
   <html>
     <head>
       <meta charset="UTF-8" />
-      <title>Payment Success - Aamana Classroom</title>
+      <title>Account Activated - Aamana Classroom</title>
     </head>
     <body style="margin:0; padding:0; font-family: Arial, sans-serif; background-color:#f9f9f9;">
       <table width="100%" cellpadding="0" cellspacing="0">
@@ -22,22 +22,36 @@ export const paymentSuccessTemplate = (user, transaction) => {
               <!-- Body -->
               <tr>
                 <td style="padding:30px; color:#333;">
-                  <h2 style="margin-top:0;">🎉 Payment Successful!</h2>
+                  <h2 style="margin-top:0;">🎉 Account Activated!</h2>
                   <p>Hello <strong>${user.name}</strong>,</p>
                   <p>Your account has been successfully <strong>activated</strong>. You can now enjoy all the features of Aamana Classroom.</p>
 
+                  <!-- User Info -->
                   <table style="width:100%; margin:20px 0; border-collapse:collapse;">
                     <tr>
-                      <td style="padding:10px; border:1px solid #ddd;"><strong>Transaction ID</strong></td>
-                      <td style="padding:10px; border:1px solid #ddd;">${transaction._id}</td>
+                      <td style="padding:10px; border:1px solid #ddd;"><strong>Name</strong></td>
+                      <td style="padding:10px; border:1px solid #ddd;">${user.name}</td>
                     </tr>
                     <tr>
-                      <td style="padding:10px; border:1px solid #ddd;"><strong>Amount</strong></td>
-                      <td style="padding:10px; border:1px solid #ddd;">$${(transaction.amount / 100).toFixed(2)}</td>
+                      <td style="padding:10px; border:1px solid #ddd;"><strong>Email</strong></td>
+                      <td style="padding:10px; border:1px solid #ddd;">${user.email}</td>
+                    </tr>
+                    ${user.phone ? `
+                    <tr>
+                      <td style="padding:10px; border:1px solid #ddd;"><strong>Phone</strong></td>
+                      <td style="padding:10px; border:1px solid #ddd;">${user.phone}</td>
+                    </tr>` : ""}
+                    <tr>
+                      <td style="padding:10px; border:1px solid #ddd;"><strong>Plan</strong></td>
+                      <td style="padding:10px; border:1px solid #ddd;">${user.plan?.name || "N/A"}</td>
                     </tr>
                     <tr>
-                      <td style="padding:10px; border:1px solid #ddd;"><strong>Date</strong></td>
-                      <td style="padding:10px; border:1px solid #ddd;">${new Date(transaction.createdAt).toLocaleString()}</td>
+                      <td style="padding:10px; border:1px solid #ddd;"><strong>Status</strong></td>
+                      <td style="padding:10px; border:1px solid #ddd; color:green; font-weight:bold;">${user.status}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:10px; border:1px solid #ddd;"><strong>Joined</strong></td>
+                      <td style="padding:10px; border:1px solid #ddd;">${new Date(user.createdAt).toLocaleString()}</td>
                     </tr>
                   </table>
 
