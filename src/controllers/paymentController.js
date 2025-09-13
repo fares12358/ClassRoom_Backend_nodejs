@@ -117,15 +117,15 @@ export const stripeWebhook = async (req, res) => {
 
 export const retryPayment = async (req, res) => {
   try {
-    const { paymentId } = req.body;
+    const { pendingId } = req.body;
 
-    // 1. Find the pending transaction
-    const transaction = await Transaction.findById(paymentId);
-    if (!transaction || transaction.status !== "pending") {
-      return res.status(404).json({ message: "Pending transaction not found" });
+    // 1. Find pending user with plan
+    const pendingUser = await PendingUser.findById(pendingId).populate("planId");
+    if (!pendingUser) {
+      return res.status(404).json({ message: "Pending user not found" });
     }
 
-    // 2. Create a new Stripe checkout session with same data
+    // 2. Create a new Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -133,25 +133,41 @@ export const retryPayment = async (req, res) => {
         {
           price_data: {
             currency: "usd",
-            product_data: { name: transaction.planName },
-            unit_amount: transaction.amount * 100, // convert to cents
+            product_data: { name: pendingUser.planId.name },
+            unit_amount: pendingUser.planId.price, // ⚠️ Make sure stored in cents
           },
           quantity: 1,
         },
       ],
-      success_url: `${process.env.CLIENT_URL}/success?paymentId=${transaction._id}`,
-      cancel_url: `${process.env.CLIENT_URL}/cancel?paymentId=${transaction._id}`,
-      customer_email: transaction.userEmail,
+      metadata: { pendingId: pendingUser._id.toString() },
+      customer_email: pendingUser.email,
+      success_url: `${process.env.FRONTEND_URL}/Pages/success?pendingId=${pendingUser._id}`,
+      cancel_url: `${process.env.FRONTEND_URL}/Pages/cancel?pendingId=${pendingUser._id}`,
     });
 
-    // 3. Save latest sessionId for tracking
+    // 3. Update Transaction (reuse old if exists, otherwise create new)
+    let transaction = await Transaction.findOne({ pendingUser: pendingUser._id, status: "pending" });
+    if (!transaction) {
+      transaction = new Transaction({
+        pendingUser: pendingUser._id,
+        plan: pendingUser.planId._id,
+        amount: pendingUser.planId.price,
+        currency: "usd",
+        status: "pending",
+      });
+    }
     transaction.stripeSessionId = session.id;
+    transaction.checkoutUrl = session.url;
     await transaction.save();
+
+    // 4. Update pending user checkout link
+    pendingUser.checkoutUrl = session.url;
+    await pendingUser.save();
 
     res.json({ url: session.url });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error retrying payment" });
+    console.error("Retry Payment Error:", err);
+    res.status(500).json({ message: "Error retrying payment", error: err.message });
   }
 };
 
