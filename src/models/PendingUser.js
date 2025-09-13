@@ -7,6 +7,8 @@ const pendingUserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   planId: { type: mongoose.Schema.Types.ObjectId, ref: "Plan", required: true },
   createdAt: { type: Date, default: Date.now },
+  status: { type: String, enum: ["pending"], default: "pending" },
+  checkoutUrl: { type: String }, // ✅ store Stripe checkout session URL
 });
 
 export default mongoose.model("PendingUser", pendingUserSchema);

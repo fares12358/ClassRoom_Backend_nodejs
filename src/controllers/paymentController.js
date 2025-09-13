@@ -3,6 +3,8 @@ import PendingUser from "../models/PendingUser.js";
 import User from "../models/Users.js";
 import { generateAccessToken } from "../utils/tokens.js";
 import dotenv from "dotenv";
+import Transaction from "../models/Transaction.js";
+import { sendPendingPaymentEmail } from "./emailController.js";
 dotenv.config(); // MUST be first line
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -32,8 +34,23 @@ export const createCheckoutSession = async (req, res) => {
       success_url: `${process.env.FRONTEND_URL}/Pages/success?pendingId=${pendingUser._id}`,
       cancel_url: `${process.env.FRONTEND_URL}/Pages/cancel?pendingId=${pendingUser._id}`,
     });
+    // ✅ Create transaction entry
+    const transaction = new Transaction({
+      pendingUser: pendingUser._id,
+      plan: pendingUser.planId._id,
+      stripeSessionId: session.id,
+      amount: pendingUser.planId.price,
+      currency: "usd",
+      status: "pending",
+      checkoutUrl: session.url,
+    });
+    await transaction.save();
 
+    pendingUser.checkoutUrl = session.url;
+    await pendingUser.save();
+    await sendPendingPaymentEmail(pendingUser, session.url);
     res.json({ url: session.url });
+
   } catch (error) {
     console.error("Create Checkout Error:", error);
     res.status(500).json({ error: error.message });
@@ -71,9 +88,20 @@ export const stripeWebhook = async (req, res) => {
 
       newUser.accessToken = generateAccessToken(newUser);
       await newUser.save();
+
+      // ✅ Update transaction
+      await Transaction.findOneAndUpdate(
+        { stripeSessionId: session.id },
+        {
+          user: newUser._id,
+          stripePaymentId: session.payment_intent,
+          status: "succeeded",
+        }
+      );
+
       await PendingUser.findByIdAndDelete(pendingId);
 
-      console.log(`✅ User ${newUser.email} activated after payment`);
+      await sendPaymentSuccessEmail(newUser);
     }
 
     res.status(200).json({ received: true });
