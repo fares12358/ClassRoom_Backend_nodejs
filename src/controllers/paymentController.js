@@ -111,3 +111,47 @@ export const stripeWebhook = async (req, res) => {
   }
 };
 
+/**
+ * repay if payment canceled
+ */
+
+export const retryPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.body;
+
+    // 1. Find the pending transaction
+    const transaction = await Transaction.findById(paymentId);
+    if (!transaction || transaction.status !== "pending") {
+      return res.status(404).json({ message: "Pending transaction not found" });
+    }
+
+    // 2. Create a new Stripe checkout session with same data
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: { name: transaction.planName },
+            unit_amount: transaction.amount * 100, // convert to cents
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${process.env.CLIENT_URL}/success?paymentId=${transaction._id}`,
+      cancel_url: `${process.env.CLIENT_URL}/cancel?paymentId=${transaction._id}`,
+      customer_email: transaction.userEmail,
+    });
+
+    // 3. Save latest sessionId for tracking
+    transaction.sessionId = session.id;
+    await transaction.save();
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error retrying payment" });
+  }
+};
+

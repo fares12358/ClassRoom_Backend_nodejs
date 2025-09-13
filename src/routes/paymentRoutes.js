@@ -1,5 +1,5 @@
 import express from "express";
-import { createCheckoutSession, stripeWebhook } from "../controllers/paymentController.js";
+import { createCheckoutSession, retryPayment, stripeWebhook } from "../controllers/paymentController.js";
 import bodyParser from "body-parser";
 
 const router = express.Router();
@@ -9,5 +9,6 @@ router.post("/webhook", bodyParser.raw({ type: "application/json" }), stripeWebh
 
 // Checkout route
 router.post("/create-checkout-session", createCheckoutSession);
+router.post("/re-payment", retryPayment);
 
 export default router;
