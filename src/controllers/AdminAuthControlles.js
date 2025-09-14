@@ -2,10 +2,11 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import Admin from "../models/Admin.js";
 import { sendOTPEmail } from "./emailController.js";
+import Transaction from "../models/Transaction.js";
 
 // Add new admin
 export const addAdmin = async (req, res) => {
-    const { name, email, password, role } = req.body;
+    const { name, email,phone, password, role } = req.body;
     try {
         const existing = await Admin.findOne({ email });
         if (existing) return res.status(400).json({ message: "Admin already exists" });
@@ -16,6 +17,7 @@ export const addAdmin = async (req, res) => {
         const admin = new Admin({
             name,
             email,
+            phone,
             password: hashedPassword, // hashed in controller
             role: role || "admin",
         });
@@ -50,6 +52,7 @@ export const loginAdmin = async (req, res) => {
             admin: {
                 id: admin._id,
                 name: admin.name,
+                phone:admin.phone,
                 email: admin.email,
                 role: admin.role,
                 status: admin.status,
@@ -94,7 +97,7 @@ export const getAdmins = async (req, res) => {
 // Update admin info
 export const updateAdmin = async (req, res) => {
     const { adminId } = req.params;
-    const { name, email, password, role, status } = req.body;
+    const { name,phone, email, password, role, status } = req.body;
 
     try {
         const admin = await Admin.findById(adminId);
@@ -104,6 +107,7 @@ export const updateAdmin = async (req, res) => {
         if (email) admin.email = email;
         if (role) admin.role = role;
         if (status) admin.status = status;
+        if (phone) admin.phone = phone;
         if (password) admin.password = await bcrypt.hash(password, 10);
 
         await admin.save();
@@ -184,3 +188,23 @@ export const resetAdminPassword = async (req, res) => {
         res.status(500).json({ message: "Password reset failed", error: err.message });
     }
 };
+
+
+
+/**
+ * Get all transactions (admin)
+ */
+export const getAllTransactions = async (req, res) => {
+    try {
+      const transactions = await Transaction.find()
+        .populate("user", "name email")       // populate user name & email
+        .populate("pendingUser", "name email") // optional before activation
+        .populate("plan", "title price durationValue durationType") // plan details
+        .sort({ createdAt: -1 }); // newest first
+  
+      res.status(200).json({ success: true, data: transactions });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ success: false, message: "Failed to fetch transactions" });
+    }
+  };

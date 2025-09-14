@@ -59,11 +59,9 @@ export const getSignupStatus = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
 /**
  * Login only active users
  */
-
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -97,7 +95,6 @@ export const loginUser = async (req, res) => {
     res.status(500).json({ message: "Login error", error: error.message });
   }
 };
-
 
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;

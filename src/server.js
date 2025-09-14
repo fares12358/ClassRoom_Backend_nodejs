@@ -30,8 +30,6 @@ app.use("/api/plans", planRoutes);
 app.use("/api/admin", AdminAuthRoutes);
 
 
-
-
 app.get("/", (req, res) => res.send("🚀 Backend running!"));
 
 const PORT = process.env.PORT || 5000;
