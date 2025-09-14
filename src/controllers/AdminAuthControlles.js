@@ -3,10 +3,13 @@ import jwt from "jsonwebtoken";
 import Admin from "../models/Admin.js";
 import { sendOTPEmail } from "./emailController.js";
 import Transaction from "../models/Transaction.js";
+import Users from "../models/Users.js";
+import Plan from "../models/Plan.js";
+import Class from "../models/Class.js";
 
 // Add new admin
 export const addAdmin = async (req, res) => {
-    const { name, email,phone, password, role } = req.body;
+    const { name, email, phone, password, role } = req.body;
     try {
         const existing = await Admin.findOne({ email });
         if (existing) return res.status(400).json({ message: "Admin already exists" });
@@ -28,13 +31,12 @@ export const addAdmin = async (req, res) => {
         res.status(500).json({ message: "Error adding admin", error: error.message });
     }
 };
-
 // Admin login
 export const loginAdmin = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        const admin = await Admin.findOne({ email});
+        const admin = await Admin.findOne({ email });
         if (!admin) return res.status(401).json({ message: "Invalid credentials" });
 
         const isMatch = await bcrypt.compare(password, admin.password);
@@ -52,7 +54,7 @@ export const loginAdmin = async (req, res) => {
             admin: {
                 id: admin._id,
                 name: admin.name,
-                phone:admin.phone,
+                phone: admin.phone,
                 email: admin.email,
                 role: admin.role,
                 status: admin.status,
@@ -62,28 +64,26 @@ export const loginAdmin = async (req, res) => {
         res.status(500).json({ message: "Login failed", error: err.message });
     }
 };
-
 export const reloginAdmin = async (req, res) => {
     const authHeader = req.headers.authorization;
-  
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-  
-    const token = authHeader.split(" ")[1];
-  
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  
-      const admin = await Admin.findById(decoded.id).select("-password -resetOTP -resetOTPExpires");
-      if (!admin) return res.status(401).json({ message: "Admin not found" });
-  
-      res.status(200).json({ admin });
-    } catch (err) {
-      res.status(401).json({ message: "Invalid or expired token" });
-    }
-  };
 
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        const admin = await Admin.findById(decoded.id).select("-password -resetOTP -resetOTPExpires");
+        if (!admin) return res.status(401).json({ message: "Admin not found" });
+
+        res.status(200).json({ admin });
+    } catch (err) {
+        res.status(401).json({ message: "Invalid or expired token" });
+    }
+};
 // Get all admins
 export const getAdmins = async (req, res) => {
     try {
@@ -93,11 +93,10 @@ export const getAdmins = async (req, res) => {
         res.status(500).json({ message: "Failed to fetch admins", error: err.message });
     }
 };
-
 // Update admin info
 export const updateAdmin = async (req, res) => {
     const { adminId } = req.params;
-    const { name,phone, email, password, role, status } = req.body;
+    const { name, phone, email, password, role, status } = req.body;
 
     try {
         const admin = await Admin.findById(adminId);
@@ -116,7 +115,6 @@ export const updateAdmin = async (req, res) => {
         res.status(500).json({ message: "Failed to update admin", error: err.message });
     }
 };
-
 // Delete admin
 export const deleteAdmin = async (req, res) => {
     const { adminId } = req.params;
@@ -130,8 +128,6 @@ export const deleteAdmin = async (req, res) => {
         res.status(500).json({ message: "Failed to delete admin", error: err.message });
     }
 };
-
-
 export const forgotAdminPassword = async (req, res) => {
     const { email } = req.body;
 
@@ -157,7 +153,6 @@ export const forgotAdminPassword = async (req, res) => {
         res.status(500).json({ message: "Failed to send OTP", error: err.message });
     }
 };
-
 // --- Reset Password ---
 export const resetAdminPassword = async (req, res) => {
     const { email, otp, newPassword } = req.body;
@@ -189,22 +184,96 @@ export const resetAdminPassword = async (req, res) => {
     }
 };
 
-
-
-/**
- * Get all transactions (admin)
- */
+// Get all transactions (admin)
 export const getAllTransactions = async (req, res) => {
     try {
-      const transactions = await Transaction.find()
-        .populate("user", "name email")       // populate user name & email
-        .populate("pendingUser", "name email") // optional before activation
-        .populate("plan", "title price durationValue durationType") // plan details
-        .sort({ createdAt: -1 }); // newest first
-  
-      res.status(200).json({ success: true, data: transactions });
+        const transactions = await Transaction.find()
+            .populate("user", "name email")       // populate user name & email
+            .populate("pendingUser", "name email") // optional before activation
+            .populate("plan", "title price durationValue durationType") // plan details
+            .sort({ createdAt: -1 }); // newest first
+
+        res.status(200).json({ success: true, data: transactions });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ success: false, message: "Failed to fetch transactions" });
+        console.error(err);
+        res.status(500).json({ success: false, message: "Failed to fetch transactions" });
+    }
+};
+
+// ✅ Get All Students (Admin)
+export const getAllStudents = async (req, res) => {
+    try {
+        const students = await Users.find()
+            .populate("plan", "title price durationValue durationType") // only needed fields from plan
+            .populate("classes", "className"); // ✅ only class name instead of full object
+
+        const result = await Promise.all(
+            students.map(async (student) => {
+                const transactions = await Transaction.find({ user: student._id })
+                    .populate("plan", "title price durationValue durationType");
+
+                // ✅ convert plan price for student
+                const studentPlan = student.plan
+                    ? {
+                        ...student.plan.toObject(),
+                        price: (student.plan.price / 100).toFixed(2),
+                    }
+                    : null;
+
+                // ✅ convert plan price for transactions
+                const formattedTransactions = transactions.map((t) => ({
+                    ...t.toObject(),
+                    plan: t.plan
+                        ? {
+                            ...t.plan.toObject(),
+                            price: (t.plan.price / 100).toFixed(2),
+                        }
+                        : null,
+                }));
+
+                return {
+                    id: student._id,
+                    name: student.name,
+                    email: student.email,
+                    phone: student.phone,
+                    status: student.status,
+                    plan: studentPlan,
+                    classes: student.classes.map((cls) => ({
+                        id: cls._id,
+                        name: cls.className,
+                    })),
+                    transactions: formattedTransactions,
+                    createdAt: student.createdAt,
+                };
+            })
+        );
+
+        res.json(result);
+    } catch (error) {
+        console.error("Error fetching students:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
+export const getAllClasses = async (req, res) => {
+    try {
+      const classes = await Class.find().populate("students", "_id"); // only fetch student ids
+  
+      const result = classes.map((cls) => ({
+        id: cls._id,
+        name: cls.name,
+        description: cls.description,
+        studentsCount: cls.students.length,
+        videosCount: cls.videos.length,
+        pdfsCount: cls.pdfs.length,
+        tasksCount: cls.tasks.length,
+        status: cls.status,
+        createdAt: cls.createdAt,
+      }));
+  
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching classes:", error);
+      res.status(500).json({ message: "Server error" });
     }
   };

@@ -1,6 +1,6 @@
 import express from "express";
 import { adminMiddleware, authMiddleware } from "../middleware/authMiddleware.js";
-import { addAdmin, deleteAdmin, forgotAdminPassword, getAdmins, getAllTransactions, loginAdmin, reloginAdmin, resetAdminPassword, updateAdmin } from "../controllers/AdminAuthControlles.js";
+import { addAdmin, deleteAdmin, forgotAdminPassword, getAdmins, getAllClasses, getAllStudents, getAllTransactions, loginAdmin, reloginAdmin, resetAdminPassword, updateAdmin } from "../controllers/AdminAuthControlles.js";
 
 const router = express.Router();
 
@@ -21,6 +21,8 @@ router.put("/:adminId", updateAdmin);
 router.delete("/:adminId", deleteAdmin);
 
 router.get("/transactions", getAllTransactions);
+router.get("/students", getAllStudents);
+router.get("/classes", getAllClasses);
 
 
 export default router;

@@ -7,6 +7,7 @@ import AuthRoutes from "./routes/AuthRoutes.js";
 import PaymentRoutes from "./routes/paymentRoutes.js";
 import planRoutes from "./routes/planRoutes.js";
 import AdminAuthRoutes from "./routes/AdminAuthRoutes.js";
+import StudentRoutes from "./routes/StudentRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -28,7 +29,7 @@ app.use("/api/auth", AuthRoutes);
 app.use("/api/payment", PaymentRoutes);
 app.use("/api/plans", planRoutes);
 app.use("/api/admin", AdminAuthRoutes);
-
+app.use("/api/student", StudentRoutes);
 
 app.get("/", (req, res) => res.send("🚀 Backend running!"));
 
