@@ -7,6 +7,7 @@ import Users from "../models/Users.js";
 import Plan from "../models/Plan.js";
 import Class from "../models/Class.js";
 import PendingUser from "../models/PendingUser.js";
+import cloudinary from "../config/cloudinary.js";
 
 // Admin login
 export const loginAdmin = async (req, res) => {
@@ -274,7 +275,7 @@ export const getAllStudents = async (req, res) => {
     try {
         const students = await Users.find()
             .populate("plan", "title price durationValue durationType") // only needed fields from plan
-            .populate("classes", "className"); // ✅ only class name instead of full object
+            .populate("classes", "name"); // ✅ only class name instead of full object
 
         const result = await Promise.all(
             students.map(async (student) => {
@@ -309,7 +310,7 @@ export const getAllStudents = async (req, res) => {
                     plan: studentPlan,
                     classes: student.classes.map((cls) => ({
                         id: cls._id,
-                        name: cls.className,
+                        name: cls.name,
                     })),
                     transactions: formattedTransactions,
                     createdAt: student.createdAt,
@@ -611,65 +612,96 @@ export const getStudentClasses = async (req, res) => {
     }
 };
 // files (FDB)
+
 // ✅ Upload PDF (private)
 export const addFilesClass = async (req, res) => {
     try {
         const { classId } = req.params;
         const { name, description } = req.body;
 
-        if (!req.file) return res.status(400).json({ message: "No PDF uploaded" });
+        if (!req.file) {
+            return res.status(400).json({ message: "No PDF uploaded" });
+        }
 
-        const uploadStream = cloudinary.v2.uploader.upload_stream(
+        // Upload to Cloudinary
+        const uploadStream = cloudinary.uploader.upload_stream(
             {
                 resource_type: "raw",
                 folder: "classroom/pdfs",
                 format: "pdf",
-                type: "private",
+                type: "private", // ensures private access
             },
             async (error, file) => {
-                if (error) return res.status(500).json({ message: error.message });
+                if (error) {
+                    console.error("Cloudinary upload error:", error);
+                    return res.status(500).json({ message: error.message });
+                }
 
+                // ✅ Match schema (public_id + url + metadata)
                 const newPdf = {
-                    public_id: file.public_id, // ✅ only store public_id + metadata
+                    public_id: file.public_id,
+                    url: file.secure_url, // <--- FIX: add this
                     name,
                     description,
                     addedAt: new Date(),
                 };
 
+                // Push to class
                 const updatedClass = await Class.findByIdAndUpdate(
                     classId,
                     { $push: { pdfs: newPdf } },
                     { new: true }
                 );
 
-                res.json(updatedClass);
+                if (!updatedClass) {
+                    return res.status(404).json({ message: "Class not found" });
+                }
+
+                res.status(201).json({
+                    message: "PDF uploaded successfully",
+                    pdf: newPdf,
+                    class: updatedClass,
+                });
             }
         );
 
+        // Send buffer to Cloudinary
         uploadStream.end(req.file.buffer);
+
     } catch (err) {
+        console.error("Add file error:", err);
         res.status(500).json({ message: err.message });
     }
 };
 
-// ✅ Update PDF (replace or metadata)
+// ✅ Update PDF
 export const updateFilesClass = async (req, res) => {
     try {
         const { classId, pdfId } = req.params;
         const { name, description } = req.body;
 
-        const classroom = await Class.findById(classId);
-        if (!classroom) return res.status(404).json({ message: "Class not found" });
+        // Find the class
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) {
+            return res.status(404).json({ message: "Class not found" });
+        }
 
-        const pdf = classroom.pdfs.id(pdfId);
-        if (!pdf) return res.status(404).json({ message: "PDF not found" });
+        // Find the PDF
+        const pdf = classDoc.pdfs.id(pdfId);
+        if (!pdf) {
+            return res.status(404).json({ message: "PDF not found" });
+        }
 
+        // If a new file is uploaded -> replace in Cloudinary
         if (req.file) {
-            // Delete old PDF
-            await cloudinary.v2.uploader.destroy(pdf.public_id, { resource_type: "raw" });
+            // Delete old file from Cloudinary
+            await cloudinary.uploader.destroy(pdf.public_id, {
+                resource_type: "raw",
+                type: "private",
+            });
 
             // Upload new PDF
-            const uploadStream = cloudinary.v2.uploader.upload_stream(
+            const uploadStream = cloudinary.uploader.upload_stream(
                 {
                     resource_type: "raw",
                     folder: "classroom/pdfs",
@@ -677,54 +709,91 @@ export const updateFilesClass = async (req, res) => {
                     type: "private",
                 },
                 async (error, file) => {
-                    if (error) return res.status(500).json({ message: error.message });
+                    if (error) {
+                        console.error("Cloudinary upload error:", error);
+                        return res.status(500).json({ message: error.message });
+                    }
 
+                    // Update fields
                     pdf.public_id = file.public_id;
+                    pdf.url = file.secure_url;
                     if (name) pdf.name = name;
                     if (description) pdf.description = description;
+                    pdf.addedAt = new Date();
 
-                    await classroom.save();
-                    res.json(classroom);
+                    await classDoc.save();
+
+                    res.status(200).json({
+                        message: "PDF updated successfully (file replaced)",
+                        pdf,
+                        class: classDoc,
+                    });
                 }
             );
 
+            // Send buffer to Cloudinary
             uploadStream.end(req.file.buffer);
         } else {
-            // Update metadata only
+            // Only update metadata
             if (name) pdf.name = name;
             if (description) pdf.description = description;
 
-            await classroom.save();
-            res.json(classroom);
+            await classDoc.save();
+
+            res.status(200).json({
+                message: "PDF metadata updated successfully",
+                pdf,
+                class: classDoc,
+            });
         }
     } catch (err) {
+        console.error("Update file error:", err);
         res.status(500).json({ message: err.message });
     }
 };
 
-// ✅ Delete PDF
+
+// ✅ Delete PDF (private)
 export const deleteFilesClass = async (req, res) => {
     try {
         const { classId, pdfId } = req.params;
 
-        const classroom = await Class.findById(classId);
-        if (!classroom) return res.status(404).json({ message: "Class not found" });
+        // Find class
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) {
+            return res.status(404).json({ message: "Class not found" });
+        }
 
-        const pdf = classroom.pdfs.id(pdfId);
-        if (!pdf) return res.status(404).json({ message: "PDF not found" });
+        // Find the PDF inside class
+        const pdf = classDoc.pdfs.id(pdfId);
+        if (!pdf) {
+            return res.status(404).json({ message: "PDF not found" });
+        }
 
-        // Delete from cloudinary
-        await cloudinary.v2.uploader.destroy(pdf.public_id, { resource_type: "raw" });
+        // Delete from Cloudinary
+        await cloudinary.uploader.destroy(pdf.public_id, {
+            resource_type: "raw", // important for PDFs
+            type: "private"
+        });
 
-        // Remove from DB
-        pdf.remove();
-        await classroom.save();
+        // Remove from array
+        pdf.deleteOne();
 
-        res.json({ message: "PDF deleted", classroom });
+        // Save updated class
+        await classDoc.save();
+
+        res.status(200).json({
+            message: "PDF deleted successfully",
+            class: classDoc
+        });
+
     } catch (err) {
+        console.error("Delete file error:", err);
         res.status(500).json({ message: err.message });
     }
 };
+
+
 
 // ✅ Get single PDF (admin → long signed URL)
 export const getFilesClass = async (req, res) => {
@@ -752,17 +821,18 @@ export const getFilesClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
 // ✅ Get all PDFs (admin → with signed URLs)
 export const getAllFilesClass = async (req, res) => {
     try {
         const { classId } = req.params;
 
         const classroom = await Class.findById(classId);
-        if (!classroom) return res.status(404).json({ message: "Class not found" });
+        if (!classroom) {
+            return res.status(404).json({ message: "Class not found" });
+        }
 
         const pdfs = classroom.pdfs.map((pdf) => {
-            const signedUrl = cloudinary.v2.utils.private_download_url(
+            const signedUrl = cloudinary.utils.private_download_url(
                 pdf.public_id,
                 "pdf",
                 {
@@ -782,6 +852,7 @@ export const getAllFilesClass = async (req, res) => {
 
         res.json({ pdfs });
     } catch (err) {
+        console.error("Get PDFs error:", err);
         res.status(500).json({ message: err.message });
     }
 };
