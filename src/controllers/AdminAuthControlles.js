@@ -877,7 +877,6 @@ export const getAllFilesClass = async (req, res) => {
 };
 
 // tasks
-
 // ✅ Add Task (upload PDF)
 export const addTaskClass = async (req, res) => {
     try {
@@ -931,11 +930,12 @@ export const addTaskClass = async (req, res) => {
         uploadStream.end(req.file.buffer);
 
     } catch (err) {
+        console.log(err);
+        
         console.error("Add task error:", err);
         res.status(500).json({ message: err.message });
     }
 };
-
 // ✅ Update Task
 export const updateTaskClass = async (req, res) => {
     try {
@@ -1003,7 +1003,6 @@ export const updateTaskClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
 // ✅ Delete Task
 export const deleteTaskClass = async (req, res) => {
     try {
@@ -1032,7 +1031,6 @@ export const deleteTaskClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
 // ✅ Get single Task (24h signed link)
 export const getTaskClass = async (req, res) => {
     try {
@@ -1058,7 +1056,6 @@ export const getTaskClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
 // ✅ Get all Tasks (24h signed links)
 export const getAllTasksClass = async (req, res) => {
     try {

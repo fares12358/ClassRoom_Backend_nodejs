@@ -31,7 +31,6 @@ export const joinClass = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 export const getStudentClasses = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -61,8 +60,35 @@ export const getStudentClasses = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+export const getStudentClasseNote = async (req, res) => {
+  try {
+    const { classId } = req.params;
 
+    if (!classId) {
+      return res.status(400).json({ message: "classId is required" });
+    }
 
+    // Find the class by ID and select only the notes
+    const classData = await Class.findById(classId).select("notes name");
+
+    if (!classData) {
+      return res.status(404).json({ message: "Class not found" });
+    }
+
+    // Return notes with class name
+    res.json({
+      classId: classData._id,
+      className: classData.name,
+      notes: classData.notes.map(note => ({
+        msg: note.msg,
+        createdAt: note.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error("Error fetching class notes:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
 // get single pdf (valid for 24h only)
 export const getFilesClasses = async (req, res) => {
   try {
@@ -95,7 +121,6 @@ export const getFilesClasses = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 // get all pdfs for a class (24h signed URLs)
 export const getAllFilesClass = async (req, res) => {
   try {
@@ -133,6 +158,65 @@ export const getAllFilesClass = async (req, res) => {
   }
 };
 
+export const getTaskForStudent = async (req, res) => {
+  try {
+      const { classId, taskId } = req.params;
+
+      const classroom = await Class.findById(classId);
+      if (!classroom) return res.status(404).json({ message: "Class not found" });
+
+      const task = classroom.tasks.id(taskId);
+      if (!task) return res.status(404).json({ message: "Task not found" });
+
+      const signedUrl = cloudinary.utils.private_download_url(
+          task.public_id,
+          "pdf",
+          {
+              resource_type: "raw",
+              expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
+          }
+      );
+
+      res.json({ url: signedUrl });
+  } catch (err) {
+      console.error("Get task error:", err);
+      res.status(500).json({ message: err.message });
+  }
+};
+// ✅ Student: Get all Tasks (12h signed links)
+export const getAllTasksForStudent = async (req, res) => {
+  try {
+      const { classId } = req.params;
+
+      const classroom = await Class.findById(classId);
+      if (!classroom) return res.status(404).json({ message: "Class not found" });
+
+      const tasks = classroom.tasks.map((task) => {
+          const signedUrl = cloudinary.utils.private_download_url(
+              task.public_id,
+              "pdf",
+              {
+                  resource_type: "raw",
+                  expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
+              }
+          );
+
+          return {
+              _id: task._id,
+              name: task.name,
+              description: task.description,
+              addedAt: task.addedAt,
+              url: signedUrl,
+          };
+      });
+
+      res.json({ tasks });
+  } catch (err) {
+      console.error("Get tasks error:", err);
+      res.status(500).json({ message: err.message });
+  }
+};
+
 // Helper for signed video URL
 function generateSignedVideoUrl(publicId) {
   return cloudinary.v2.url(publicId, {
@@ -143,7 +227,6 @@ function generateSignedVideoUrl(publicId) {
     expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12 // 12h
   });
 }
-
 // ✅ Get all videos for a class (student)
 export const getStudentVideos = async (req, res) => {
   try {
@@ -164,7 +247,6 @@ export const getStudentVideos = async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 };
-
 // ✅ Get single video by ID (student)
 export const getStudentVideoById = async (req, res) => {
   try {
