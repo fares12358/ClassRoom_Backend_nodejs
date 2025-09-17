@@ -148,6 +148,7 @@ export const getAllFilesClass = async (req, res) => {
         name: file.name,
         pdfUrl: secureUrl,
         expiresAt: expireTime,
+        description: file.description
       };
     });
 
@@ -160,60 +161,60 @@ export const getAllFilesClass = async (req, res) => {
 
 export const getTaskForStudent = async (req, res) => {
   try {
-      const { classId, taskId } = req.params;
+    const { classId, taskId } = req.params;
 
-      const classroom = await Class.findById(classId);
-      if (!classroom) return res.status(404).json({ message: "Class not found" });
+    const classroom = await Class.findById(classId);
+    if (!classroom) return res.status(404).json({ message: "Class not found" });
 
-      const task = classroom.tasks.id(taskId);
-      if (!task) return res.status(404).json({ message: "Task not found" });
+    const task = classroom.tasks.id(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
 
-      const signedUrl = cloudinary.utils.private_download_url(
-          task.public_id,
-          "pdf",
-          {
-              resource_type: "raw",
-              expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
-          }
-      );
+    const signedUrl = cloudinary.utils.private_download_url(
+      task.public_id,
+      "pdf",
+      {
+        resource_type: "raw",
+        expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
+      }
+    );
 
-      res.json({ url: signedUrl });
+    res.json({ url: signedUrl });
   } catch (err) {
-      console.error("Get task error:", err);
-      res.status(500).json({ message: err.message });
+    console.error("Get task error:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 // ✅ Student: Get all Tasks (12h signed links)
 export const getAllTasksForStudent = async (req, res) => {
   try {
-      const { classId } = req.params;
+    const { classId } = req.params;
 
-      const classroom = await Class.findById(classId);
-      if (!classroom) return res.status(404).json({ message: "Class not found" });
+    const classroom = await Class.findById(classId);
+    if (!classroom) return res.status(404).json({ message: "Class not found" });
 
-      const tasks = classroom.tasks.map((task) => {
-          const signedUrl = cloudinary.utils.private_download_url(
-              task.public_id,
-              "pdf",
-              {
-                  resource_type: "raw",
-                  expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
-              }
-          );
+    const tasks = classroom.tasks.map((task) => {
+      const signedUrl = cloudinary.utils.private_download_url(
+        task.public_id,
+        "pdf",
+        {
+          resource_type: "raw",
+          expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
+        }
+      );
 
-          return {
-              _id: task._id,
-              name: task.name,
-              description: task.description,
-              addedAt: task.addedAt,
-              url: signedUrl,
-          };
-      });
+      return {
+        _id: task._id,
+        name: task.name,
+        description: task.description,
+        addedAt: task.addedAt,
+        url: signedUrl,
+      };
+    });
 
-      res.json({ tasks });
+    res.json({ tasks });
   } catch (err) {
-      console.error("Get tasks error:", err);
-      res.status(500).json({ message: err.message });
+    console.error("Get tasks error:", err);
+    res.status(500).json({ message: err.message });
   }
 };
 
