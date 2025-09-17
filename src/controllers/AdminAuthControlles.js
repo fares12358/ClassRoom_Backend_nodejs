@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import Admin from "../models/Admin.js";
-import { sendOTPEmail } from "./emailController.js";
+import { resendPaymentEmail, sendOTPEmail } from "./emailController.js";
 import Transaction from "../models/Transaction.js";
 import Users from "../models/Users.js";
 import Plan from "../models/Plan.js";
@@ -488,6 +488,32 @@ export const updateClasses = async (req, res) => {
         res.status(500).json({ message: "خطأ في السيرفر", error: error.message });
     }
 };
+// resendPaymentLink by admin dash
+export const resendPaymentLink = async (req, res) => {
+    try {
+        const { email, url, time } = req.body;
+
+        // ✅ التحقق من المدخلات
+        if (!email || !url || !time) {
+            return res.status(400).json({ success: false, message: "البيانات غير مكتملة (email, url, time مطلوبة)" });
+        }
+
+        // ✅ إرسال الإيميل
+        await resendPaymentEmail(email, url, time);
+
+        return res.status(200).json({
+            success: true,
+            message: "✅ تم إرسال رابط الدفع بنجاح إلى البريد الإلكتروني",
+        });
+    } catch (error) {
+        console.error("❌ Error in resendPaymentLink:", error);
+        return res.status(500).json({
+            success: false,
+            message: "فشل في إرسال البريد الإلكتروني",
+            error: error.message,
+        });
+    }
+};
 export const deleteClasses = async (req, res) => { }
 // class matrial
 //notes
@@ -612,7 +638,6 @@ export const getStudentClasses = async (req, res) => {
     }
 };
 // files (FDB)
-
 // ✅ Upload PDF (private)
 export const addFilesClass = async (req, res) => {
     try {
@@ -673,7 +698,6 @@ export const addFilesClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
 // ✅ Update PDF
 export const updateFilesClass = async (req, res) => {
     try {
@@ -751,8 +775,6 @@ export const updateFilesClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
-
 // ✅ Delete PDF (private)
 export const deleteFilesClass = async (req, res) => {
     try {
@@ -792,9 +814,6 @@ export const deleteFilesClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
-
-
 // ✅ Get single PDF (admin → long signed URL)
 export const getFilesClass = async (req, res) => {
     try {
@@ -854,5 +873,318 @@ export const getAllFilesClass = async (req, res) => {
     } catch (err) {
         console.error("Get PDFs error:", err);
         res.status(500).json({ message: err.message });
+    }
+};
+
+// tasks
+
+// ✅ Add Task (upload PDF)
+export const addTaskClass = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const { name, description } = req.body;
+
+        if (!req.file) {
+            return res.status(400).json({ message: "No task PDF uploaded" });
+        }
+
+        // Upload to Cloudinary
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                resource_type: "raw",
+                folder: "classroom/tasks",
+                format: "pdf",
+                type: "private", // secure
+            },
+            async (error, file) => {
+                if (error) {
+                    console.error("Cloudinary upload error:", error);
+                    return res.status(500).json({ message: error.message });
+                }
+
+                const newTask = {
+                    public_id: file.public_id,
+                    url: file.secure_url,
+                    name,
+                    description,
+                    addedAt: new Date(),
+                };
+
+                const updatedClass = await Class.findByIdAndUpdate(
+                    classId,
+                    { $push: { tasks: newTask } },
+                    { new: true }
+                );
+
+                if (!updatedClass) {
+                    return res.status(404).json({ message: "Class not found" });
+                }
+
+                res.status(201).json({
+                    message: "Task uploaded successfully",
+                    task: newTask,
+                    class: updatedClass,
+                });
+            }
+        );
+
+        uploadStream.end(req.file.buffer);
+
+    } catch (err) {
+        console.error("Add task error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// ✅ Update Task
+export const updateTaskClass = async (req, res) => {
+    try {
+        const { classId, taskId } = req.params;
+        const { name, description } = req.body;
+
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) return res.status(404).json({ message: "Class not found" });
+
+        const task = classDoc.tasks.id(taskId);
+        if (!task) return res.status(404).json({ message: "Task not found" });
+
+        if (req.file) {
+            // Delete old
+            await cloudinary.uploader.destroy(task.public_id, {
+                resource_type: "raw",
+                type: "private",
+            });
+
+            // Upload new PDF
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    resource_type: "raw",
+                    folder: "classroom/tasks",
+                    format: "pdf",
+                    type: "private",
+                },
+                async (error, file) => {
+                    if (error) {
+                        console.error("Cloudinary upload error:", error);
+                        return res.status(500).json({ message: error.message });
+                    }
+
+                    task.public_id = file.public_id;
+                    task.url = file.secure_url;
+                    if (name) task.name = name;
+                    if (description) task.description = description;
+                    task.addedAt = new Date();
+
+                    await classDoc.save();
+
+                    res.status(200).json({
+                        message: "Task updated successfully (file replaced)",
+                        task,
+                        class: classDoc,
+                    });
+                }
+            );
+
+            uploadStream.end(req.file.buffer);
+        } else {
+            if (name) task.name = name;
+            if (description) task.description = description;
+
+            await classDoc.save();
+
+            res.status(200).json({
+                message: "Task metadata updated successfully",
+                task,
+                class: classDoc,
+            });
+        }
+    } catch (err) {
+        console.error("Update task error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// ✅ Delete Task
+export const deleteTaskClass = async (req, res) => {
+    try {
+        const { classId, taskId } = req.params;
+
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) return res.status(404).json({ message: "Class not found" });
+
+        const task = classDoc.tasks.id(taskId);
+        if (!task) return res.status(404).json({ message: "Task not found" });
+
+        await cloudinary.uploader.destroy(task.public_id, {
+            resource_type: "raw",
+            type: "private",
+        });
+
+        task.deleteOne();
+        await classDoc.save();
+
+        res.status(200).json({
+            message: "Task deleted successfully",
+            class: classDoc,
+        });
+    } catch (err) {
+        console.error("Delete task error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// ✅ Get single Task (24h signed link)
+export const getTaskClass = async (req, res) => {
+    try {
+        const { classId, taskId } = req.params;
+
+        const classroom = await Class.findById(classId);
+        if (!classroom) return res.status(404).json({ message: "Class not found" });
+
+        const task = classroom.tasks.id(taskId);
+        if (!task) return res.status(404).json({ message: "Task not found" });
+
+        const signedUrl = cloudinary.utils.private_download_url(
+            task.public_id,
+            "pdf",
+            {
+                resource_type: "raw",
+                expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24h
+            }
+        );
+
+        res.json({ url: signedUrl });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// ✅ Get all Tasks (24h signed links)
+export const getAllTasksClass = async (req, res) => {
+    try {
+        const { classId } = req.params;
+
+        const classroom = await Class.findById(classId);
+        if (!classroom) return res.status(404).json({ message: "Class not found" });
+
+        const tasks = classroom.tasks.map((task) => {
+            const signedUrl = cloudinary.utils.private_download_url(
+                task.public_id,
+                "pdf",
+                {
+                    resource_type: "raw",
+                    expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24h
+                }
+            );
+
+            return {
+                _id: task._id,
+                name: task.name,
+                description: task.description,
+                addedAt: task.addedAt,
+                url: signedUrl,
+            };
+        });
+
+        res.json({ tasks });
+    } catch (err) {
+        console.error("Get tasks error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+
+
+
+
+// ✅ Add video (after frontend uploads to Cloudinary)
+export const addVideo = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const { public_id, url, name, description } = req.body;
+
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) return res.status(404).json({ msg: "Class not found" });
+
+        classDoc.videos.push({ public_id, url, name, description });
+        await classDoc.save();
+
+        res.json({ msg: "Video added successfully", videos: classDoc.videos });
+    } catch (err) {
+        res.status(500).json({ msg: err.message });
+    }
+};
+
+// ✅ Update video metadata
+export const updateVideo = async (req, res) => {
+    try {
+        const { classId, videoId } = req.params;
+        const { name, description } = req.body;
+
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) return res.status(404).json({ msg: "Class not found" });
+
+        const video = classDoc.videos.id(videoId);
+        if (!video) return res.status(404).json({ msg: "Video not found" });
+
+        if (name) video.name = name;
+        if (description) video.description = description;
+
+        await classDoc.save();
+        res.json({ msg: "Video updated", video });
+    } catch (err) {
+        res.status(500).json({ msg: err.message });
+    }
+};
+
+// ✅ Delete video (Cloudinary + DB)
+export const deleteVideo = async (req, res) => {
+    try {
+        const { classId, videoId } = req.params;
+
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) return res.status(404).json({ msg: "Class not found" });
+
+        const video = classDoc.videos.id(videoId);
+        if (!video) return res.status(404).json({ msg: "Video not found" });
+
+        // Delete from Cloudinary
+        await cloudinary.v2.uploader.destroy(video.public_id, { resource_type: "video" });
+
+        video.remove();
+        await classDoc.save();
+
+        res.json({ msg: "Video deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ msg: err.message });
+    }
+};
+
+// ✅ Get all videos (Admin)
+export const getAllVideos = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) return res.status(404).json({ msg: "Class not found" });
+
+        res.json(classDoc.videos);
+    } catch (err) {
+        res.status(500).json({ msg: err.message });
+    }
+};
+
+// ✅ Get video by ID (Admin)
+export const getVideoById = async (req, res) => {
+    try {
+        const { classId, videoId } = req.params;
+        const classDoc = await Class.findById(classId);
+        if (!classDoc) return res.status(404).json({ msg: "Class not found" });
+
+        const video = classDoc.videos.id(videoId);
+        if (!video) return res.status(404).json({ msg: "Video not found" });
+
+        res.json(video);
+    } catch (err) {
+        res.status(500).json({ msg: err.message });
     }
 };

@@ -32,6 +32,37 @@ export const joinClass = async (req, res) => {
   }
 };
 
+export const getStudentClasses = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    if (!studentId) {
+      return res.status(400).json({ message: "studentId is required" });
+    }
+
+    // Find the student and populate their classes (only _id and name)
+    const student = await Users.findById(studentId)
+      .populate("classes", "_id name")
+      .select("classes");
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Return the list of classes with ids and names
+    res.json({
+      classes: student.classes.map(c => ({
+        id: c._id,
+        name: c.name,
+      })),
+    });
+  } catch (err) {
+    console.error("Error fetching student classes:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
 // get single pdf (valid for 24h only)
 export const getFilesClasses = async (req, res) => {
   try {
@@ -99,5 +130,59 @@ export const getAllFilesClass = async (req, res) => {
   } catch (err) {
     console.error("Error getting all files:", err);
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Helper for signed video URL
+function generateSignedVideoUrl(publicId) {
+  return cloudinary.v2.url(publicId, {
+    resource_type: "video",
+    sign_url: true,
+    type: "authenticated",
+    secure: true,
+    expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12 // 12h
+  });
+}
+
+// ✅ Get all videos for a class (student)
+export const getStudentVideos = async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const classDoc = await Class.findById(classId);
+    if (!classDoc) return res.status(404).json({ msg: "Class not found" });
+
+    const videos = classDoc.videos.map(v => ({
+      _id: v._id,
+      name: v.name,
+      description: v.description,
+      signedUrl: generateSignedVideoUrl(v.public_id),
+      addedAt: v.addedAt
+    }));
+
+    res.json(videos);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// ✅ Get single video by ID (student)
+export const getStudentVideoById = async (req, res) => {
+  try {
+    const { classId, videoId } = req.params;
+    const classDoc = await Class.findById(classId);
+    if (!classDoc) return res.status(404).json({ msg: "Class not found" });
+
+    const video = classDoc.videos.id(videoId);
+    if (!video) return res.status(404).json({ msg: "Video not found" });
+
+    res.json({
+      _id: video._id,
+      name: video.name,
+      description: video.description,
+      signedUrl: generateSignedVideoUrl(video.public_id),
+      addedAt: video.addedAt
+    });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
   }
 };

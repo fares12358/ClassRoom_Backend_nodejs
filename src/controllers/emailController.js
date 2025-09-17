@@ -3,6 +3,7 @@ import welcomeTemplate from "../utils/emailTemplates/welcomeTemplate.js";
 import { pendingPaymentTemplate } from "../utils/emailTemplates/pendingPaymentTemplate.js";
 import { paymentSuccessTemplate } from "../utils/emailTemplates/paymentSuccessTemplate.js";
 import { otpTemplate } from "../utils/emailTemplates/otpTemplate.js";
+import { resendPaymentTemplate } from "../utils/emailTemplates/resendPaymentTemplate.js";
 
 /**
  * Send a general welcome email
@@ -42,6 +43,23 @@ export const sendPendingPaymentEmail = async (user, checkoutUrl) => {
     console.error("Send Pending Payment Email Error:", error.message);
   }
 };
+/**
+ * reSend pending payment email (send by admin dash)
+ */
+export const resendPaymentEmail = async (email, checkoutUrl, timeLeft) => {
+  try {
+    const html = resendPaymentTemplate(email, checkoutUrl, timeLeft);
+
+    await sendEmail(
+      email,
+      "Complete Your Payment to Activate Your Account",
+      html
+    );
+
+  } catch (error) {
+    console.error("Send Pending Payment Email Error:", error.message);
+  }
+};
 
 /**
  * Send payment success email (after Stripe webhook confirms)
@@ -57,9 +75,9 @@ export const sendPaymentSuccessEmail = async (user) => {
   }
 };
 
-export const sendOTPEmail = async (user ,otp, resetLink) => {
+export const sendOTPEmail = async (user, otp, resetLink) => {
   try {
-    const html = otpTemplate(user ,otp, resetLink);
+    const html = otpTemplate(user, otp, resetLink);
 
     await sendEmail(user.email, "Your Account is Now Active 🎉", html);
 

@@ -9,12 +9,20 @@ const pdfSchema = new mongoose.Schema({
     addedAt: { type: Date, default: Date.now },  // Date of upload
 });
 
+const videoSchema = new mongoose.Schema({
+    public_id: { type: String, required: true }, // Cloudinary ID
+    url: { type: String, required: true },       // Cloudinary secure URL
+    name: { type: String, required: true },
+    description: { type: String },
+    addedAt: { type: Date, default: Date.now },
+});
+
 const classSchema = new mongoose.Schema({
     name: { type: String, required: true },
     description: String,
-    videos: [{ type: String }], // video URLs
+    videos: [videoSchema], // video URLs
     pdfs: [pdfSchema],   // pdf URLs
-    tasks: [{ type: String }],  // task descriptions
+    tasks: [pdfSchema],  // task descriptions
     createdAt: { type: Date, default: Date.now },
     status: { type: String, enum: ["active", "pending"], default: "pending" },
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // assigned students
