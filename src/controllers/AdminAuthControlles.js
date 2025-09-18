@@ -931,7 +931,7 @@ export const addTaskClass = async (req, res) => {
 
     } catch (err) {
         console.log(err);
-        
+
         console.error("Add task error:", err);
         res.status(500).json({ message: err.message });
     }
@@ -1086,6 +1086,83 @@ export const getAllTasksClass = async (req, res) => {
         res.json({ tasks });
     } catch (err) {
         console.error("Get tasks error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// get solve
+
+// 📌 Get Task + Submissions (Admin)
+export const getTaskSubmissionsAdmin = async (req, res) => {
+    try {
+        const { classId, taskId } = req.params;
+
+        // Find class and populate student data
+        const classroom = await Class.findById(classId)
+            .populate("tasks.submissions.student", "name email phone"); // populate student info
+
+        if (!classroom) return res.status(404).json({ message: "Class not found" });
+
+        const task = classroom.tasks.id(taskId);
+        if (!task) return res.status(404).json({ message: "Task not found" });
+
+        // ✅ Build response
+        const result = {
+            task: {
+                _id: task._id,
+                name: task.name,
+                description: task.description,
+                url: task.url, // original task file
+            },
+            submissions: task.submissions.map((sub) => ({
+                student: {
+                    name: sub.student?.name,
+                    email: sub.student?.email,
+                    phone: sub.student?.phone,
+                },
+                solution: {
+                    url: sub.url,
+                    submittedAt: sub.submittedAt,
+                },
+            })),
+        };
+
+        res.json(result);
+    } catch (err) {
+        console.error("Get submissions error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+export const getTaskesSubmissions = async (req, res) => {
+    try {
+        const { classId } = req.params;
+        const classroom = await Class.findById(classId)
+            .populate("tasks.submissions.student", "name email phone");
+
+        if (!classroom) return res.status(404).json({ message: "Class not found" });
+
+        const tasks = classroom.tasks.map((task) => ({
+            _id: task._id,
+            name: task.name,
+            description: task.description,
+            url: task.url,
+            submissions: task.submissions.map((sub) => ({
+                student: {
+                    name: sub.student?.name,
+                    email: sub.student?.email,
+                    phone: sub.student?.phone,
+                },
+                solution: {
+                    url: sub.url,
+                    submittedAt: sub.submittedAt,
+                },
+            })),
+        }));
+
+        res.json(tasks);
+    } catch (err) {
+        console.log(err);
+        
         res.status(500).json({ message: err.message });
     }
 };

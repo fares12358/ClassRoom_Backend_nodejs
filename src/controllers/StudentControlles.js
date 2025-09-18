@@ -89,7 +89,10 @@ export const getStudentClasseNote = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-// get single pdf (valid for 24h only)
+
+///////////////////////////////////////////////////////////////////////////////
+
+// ✅ Get single PDF (Student) - 24h signed link
 export const getFilesClasses = async (req, res) => {
   try {
     const { classId, pdfId } = req.params;
@@ -104,26 +107,31 @@ export const getFilesClasses = async (req, res) => {
       return res.status(404).json({ message: "File not found" });
     }
 
-    // Generate signed URL (valid for 24h)
-    const expireTime = Math.floor(Date.now() / 1000) + 60 * 60 * 24; // 24 hours
-    const secureUrl = cloudinary.url(file.public_id, {
-      resource_type: "raw",
-      type: "upload",
-      secure: true,
-      sign_url: true,
-      expires_at: expireTime,
-      transformation: [{ flags: "attachment:false" }], // prevent forced download
+    // Generate signed URL valid for 24h
+    const expireTime = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
+    const secureUrl = cloudinary.utils.private_download_url(
+      file.public_id,
+      "pdf",
+      {
+        resource_type: "raw",
+        expires_at: expireTime,
+      }
+    );
+
+    return res.json({
+      _id: file._id,
+      name: file.name,
+      description: file.description,
+      pdfUrl: secureUrl,
+      expiresAt: expireTime,
     });
-    console.log(file);
-
-
-    return res.json({ pdfUrl: secureUrl, _id: file._id, name: file.name, description: file.description, expiresAt: expireTime });
   } catch (err) {
     console.error("Error getting file:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
-// get all pdfs for a class (24h signed URLs)
+
+// ✅ Get all PDFs in a class (Student) - 24h signed links
 export const getAllFilesClass = async (req, res) => {
   try {
     const { classId } = req.params;
@@ -133,24 +141,24 @@ export const getAllFilesClass = async (req, res) => {
       return res.status(404).json({ message: "Class not found" });
     }
 
-    const expireTime = Math.floor(Date.now() / 1000) + 60 * 60 * 24; // 24 hours
+    const expireTime = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
 
     const files = classData.pdfs.map((file) => {
-      const secureUrl = cloudinary.url(file.public_id, {
-        resource_type: "raw",
-        type: "upload",
-        secure: true,
-        sign_url: true,
-        expires_at: expireTime,
-        transformation: [{ flags: "attachment:false" }],
-      });
+      const secureUrl = cloudinary.utils.private_download_url(
+        file.public_id,
+        "pdf",
+        {
+          resource_type: "raw",
+          expires_at: expireTime,
+        }
+      );
 
       return {
-        id: file._id,
+        _id: file._id,
         name: file.name,
+        description: file.description,
         pdfUrl: secureUrl,
         expiresAt: expireTime,
-        description: file.description
       };
     });
 
@@ -161,8 +169,7 @@ export const getAllFilesClass = async (req, res) => {
   }
 };
 
-//tasks
-
+// ✅ Student: Get single Task (12h signed link)
 export const getTaskForStudent = async (req, res) => {
   try {
     const { classId, taskId } = req.params;
@@ -173,24 +180,32 @@ export const getTaskForStudent = async (req, res) => {
     const task = classroom.tasks.id(taskId);
     if (!task) return res.status(404).json({ message: "Task not found" });
 
+    const expireTime = Math.floor(Date.now() / 1000) + 60 * 60 * 12;
     const signedUrl = cloudinary.utils.private_download_url(
       task.public_id,
       "pdf",
       {
         resource_type: "raw",
-        expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
+        expires_at: expireTime,
       }
     );
-    console.log(task);
 
-
-    res.json({ url: signedUrl, _id: task._id, name: task.name, description: task.description });
+    res.json({
+      _id: task._id,
+      name: task.name,
+      description: task.description,
+      addedAt: task.addedAt,
+      url: signedUrl,
+      expiresAt: expireTime,
+    });
   } catch (err) {
     console.error("Get task error:", err);
     res.status(500).json({ message: err.message });
   }
 };
+
 // ✅ Student: Get all Tasks (12h signed links)
+
 export const getAllTasksForStudent = async (req, res) => {
   try {
     const { classId } = req.params;
@@ -198,13 +213,15 @@ export const getAllTasksForStudent = async (req, res) => {
     const classroom = await Class.findById(classId);
     if (!classroom) return res.status(404).json({ message: "Class not found" });
 
+    const expireTime = Math.floor(Date.now() / 1000) + 60 * 60 * 12;
+
     const tasks = classroom.tasks.map((task) => {
       const signedUrl = cloudinary.utils.private_download_url(
         task.public_id,
         "pdf",
         {
           resource_type: "raw",
-          expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
+          expires_at: expireTime,
         }
       );
 
@@ -214,12 +231,73 @@ export const getAllTasksForStudent = async (req, res) => {
         description: task.description,
         addedAt: task.addedAt,
         url: signedUrl,
+        expiresAt: expireTime,
       };
     });
 
     res.json({ tasks });
   } catch (err) {
     console.error("Get tasks error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+///////////////////////////////////////////////////////////////////////////////
+// solve
+export const submitTaskSolution = async (req, res) => {
+  try {
+    const { classId, taskId } = req.params;
+    const studentId = req.user._id; // get from auth middleware (JWT/session)
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No solution file uploaded" });
+    }
+
+    // Upload solution to Cloudinary (private, raw PDF)
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "raw",
+        folder: `classroom/solutions/${classId}/${taskId}`,
+        format: "pdf",
+        type: "private",
+      },
+      async (error, file) => {
+        if (error) {
+          console.error("Cloudinary upload error:", error);
+          return res.status(500).json({ message: error.message });
+        }
+
+        // Find class
+        const classroom = await Class.findById(classId);
+        if (!classroom) return res.status(404).json({ message: "Class not found" });
+
+        // Find task
+        const task = classroom.tasks.id(taskId);
+        if (!task) return res.status(404).json({ message: "Task not found" });
+
+        // Push student submission
+        task.submissions.push({
+          student: studentId,
+          public_id: file.public_id,
+          url: file.secure_url,
+        });
+
+        await classroom.save();
+
+        res.status(201).json({
+          message: "Solution submitted successfully",
+          solution: {
+            student: studentId,
+            public_id: file.public_id,
+            url: file.secure_url,
+          },
+        });
+      }
+    );
+
+    uploadStream.end(req.file.buffer);
+
+  } catch (err) {
+    console.error("Submit solution error:", err);
     res.status(500).json({ message: err.message });
   }
 };

@@ -8,7 +8,7 @@ import {
     getAdminBYID, getAdmins, getAllClasses, getAllFilesClass, getAllStudents, getAllTasksClass, getAllTransactions,
     getAllVideos,
     getFilesClass,
-    getNotesClasses, getStudentClasses, getTaskClass, getVideoById, loginAdmin,
+    getNotesClasses, getStudentClasses, getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, getVideoById, loginAdmin,
     pendingUsers,
     reloginAdmin, resendPaymentLink, resetAdminPassword, updateAdmin, updateClasses, updateFilesClass, updateNoteClasses,
     updateTaskClass,
@@ -24,7 +24,6 @@ router.get("/me", reloginAdmin);
 router.post("/forgot-password", forgotAdminPassword);
 router.post("/reset-password", resetAdminPassword);
 
-
 // Admin management routes
 router.post("/auth/add", addAdmin);
 router.get("/auth", getAdmins);
@@ -34,13 +33,15 @@ router.delete("/auth/:adminId", deleteAdmin);
 
 //transactions
 router.get("/transactions", getAllTransactions);
+
 //students
 router.get("/students", getAllStudents);
+
 //pending users
 router.get("/pendingUsers", pendingUsers);
+
 // resend payment line
 router.post("/resend-payment-link", resendPaymentLink);
-
 
 //classes
 router.get("/classes", getAllClasses);
@@ -48,9 +49,7 @@ router.post("/classes/add", addClasses);
 router.put("/classes/:id", updateClasses);
 router.delete("/classes/:id", deleteClasses);
 
-
 // class matrial
-
 //notes
 router.get("/classe/:id/note", getNotesClasses);
 router.post("/classe/:id/note", addNoteClasses);
@@ -64,24 +63,25 @@ router.get("/classe/:id/student", getStudentClasses);
 router.post("/classe/:classId/file", upload.single("pdf"), addFilesClass);
 router.put("/classe/:classId/file/:pdfId", upload.single("pdf"), updateFilesClass);
 router.delete("/classe/:classId/file/:pdfId", deleteFilesClass);
-router.get("/classe/:classId/file/pdfId", getFilesClass);
+router.get("/classe/:classId/file/:pdfId", getFilesClass);
 router.get("/classe/:classId/Allfiles", getAllFilesClass);
 
 //task 
-
 router.post("/class/:classId/task", upload.single("task"), addTaskClass);
 router.put("/class/:classId/task/:taskId", upload.single("task"), updateTaskClass);
 router.delete("/class/:classId/task/:taskId", deleteTaskClass);
 router.get("/class/:classId/task/:taskId", getTaskClass);
 router.get("/class/:classId/tasks", getAllTasksClass);
 
-
+//solve
+router.get("/class/:classId/task/:taskId/submissions", getTaskSubmissionsAdmin);
+router.get("/class/:classId/tasks/submissions", getTaskesSubmissions);
 //video
 router.post("/class/:classId/video", upload.single("video"), addVideo);
 router.put("/class/:classId/video/:videoId", updateVideo);
 router.delete("/class/:classId/video/:videoId", deleteVideo);
-
 router.get("/class/:classId/videos", getAllVideos);
 router.get("/class/:classId/video/:videoId", getVideoById);
+
 
 export default router;

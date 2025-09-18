@@ -6,7 +6,15 @@ const pdfSchema = new mongoose.Schema({
     url: { type: String, required: true },       // Cloudinary secure URL
     name: { type: String, required: true },      // PDF name
     description: { type: String },               // Short description
-    addedAt: { type: Date, default: Date.now },  // Date of upload
+    addedAt: { type: Date, default: Date.now },
+    submissions: [
+        {
+          student: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // who submitted
+          public_id: String,  // Cloudinary public ID
+          url: String,        // File URL
+          submittedAt: { type: Date, default: Date.now },
+        }
+      ]  // Date of upload
 });
 
 const videoSchema = new mongoose.Schema({
