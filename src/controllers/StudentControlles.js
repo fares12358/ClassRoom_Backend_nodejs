@@ -114,8 +114,10 @@ export const getFilesClasses = async (req, res) => {
       expires_at: expireTime,
       transformation: [{ flags: "attachment:false" }], // prevent forced download
     });
+    console.log(file);
 
-    return res.json({ pdfUrl: secureUrl, name: file.name, expiresAt: expireTime });
+
+    return res.json({ pdfUrl: secureUrl, _id: file._id, name: file.name, description: file.description, expiresAt: expireTime });
   } catch (err) {
     console.error("Error getting file:", err);
     res.status(500).json({ message: "Server error" });
@@ -179,8 +181,10 @@ export const getTaskForStudent = async (req, res) => {
         expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12h
       }
     );
+    console.log(task);
 
-    res.json({ url: signedUrl });
+
+    res.json({ url: signedUrl, _id: task._id, name: task.name, description: task.description });
   } catch (err) {
     console.error("Get task error:", err);
     res.status(500).json({ message: err.message });
