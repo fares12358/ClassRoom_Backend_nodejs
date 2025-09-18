@@ -12,7 +12,8 @@ const userSchema = new mongoose.Schema({
   expiresAt: { type: Date },
   resetOTP: { type: String },          // ✅ store OTP
   resetOTPExpires: { type: Date },
-  classes: [{ type: mongoose.Schema.Types.ObjectId, ref: "Class" }]
+  classes: [{ type: mongoose.Schema.Types.ObjectId, ref: "Class" }],
+  deviceToken: { type: String, default: null } // ✅ track active device/session
 });
 
 export default mongoose.model("User", userSchema);

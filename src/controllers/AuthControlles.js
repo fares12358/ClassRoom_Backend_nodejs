@@ -4,7 +4,7 @@ import PendingUser from "../models/PendingUser.js";
 import Plan from "../models/Plan.js";
 import { generateAccessToken } from "../utils/tokens.js";
 import { sendOTPEmail } from "./emailController.js";
-
+import { v4 as uuidv4 } from "uuid";
 /**
  * Create pending user before payment
  */
@@ -59,11 +59,13 @@ export const getSignupStatus = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 /**
  * Login only active users
  */
+
 export const loginUser = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, deviceToken } = req.body; // client sends a unique deviceToken (uuid or generated per device)
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ message: "Invalid credentials" });
@@ -74,6 +76,18 @@ export const loginUser = async (req, res) => {
     // Check if subscription expired
     if (user.expiresAt && new Date() > user.expiresAt) {
       user.status = "pending"; // expire account
+      await user.save();
+      return res.status(403).json({ message: "Subscription expired" });
+    }
+
+    // Check if user already logged in on another device
+    if (user.deviceToken && user.deviceToken !== deviceToken) {
+      return res.status(403).json({ message: "Account already active on another device" });
+    }
+
+    // Assign a new deviceToken if not set
+    if (!user.deviceToken) {
+      user.deviceToken = deviceToken || uuidv4(); // generate if client didn’t send
       await user.save();
     }
 
@@ -89,12 +103,33 @@ export const loginUser = async (req, res) => {
         status: user.status,
         plan: user.plan,
         expiresAt: user.expiresAt,
+        deviceToken: user.deviceToken,
       },
     });
   } catch (error) {
     res.status(500).json({ message: "Login error", error: error.message });
   }
 };
+
+
+// logout
+
+export const logoutUser = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.deviceToken = null;
+    await user.save();
+
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Logout error", error: error.message });
+  }
+};
+
 
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;

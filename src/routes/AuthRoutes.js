@@ -6,7 +6,9 @@ const router = express.Router();
 router.post("/pending", createPendingUser); // create pending user before payment
 router.get("/pending/:pendingId", getPendingUser); // get pendinguse for cancel redirct
 router.get("/status/:pendingId", getSignupStatus); // check signup status
+
 router.post("/login", loginUser); // login user app flutter
+
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
