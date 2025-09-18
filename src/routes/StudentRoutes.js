@@ -10,7 +10,6 @@ router.get("/:studentId/classes", getStudentClasses);
 router.get("/classes/:classId/notes", getStudentClasseNote);
 
 router.get("/class/:classId/files/:pdfId", getFilesClasses);
-
 router.get("/class/:classId/Allfiles", getAllFilesClass);
 
 
