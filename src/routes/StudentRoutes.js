@@ -10,13 +10,12 @@ router.get("/:studentId/classes", getStudentClasses);
 router.get("/classes/:classId/notes", getStudentClasseNote);
 
 router.get("/class/:classId/files/:pdfId", getFilesClasses);
+
 router.get("/class/:classId/Allfiles", getAllFilesClass);
 
 
 router.get("/class/:classId/tasks", getAllTasksForStudent);
 router.get("/class/:classId/task/:taskId", getTaskForStudent);
-
-
 
 // need authMiddleware
 router.get("/class/:classId/videos", getStudentVideos);
