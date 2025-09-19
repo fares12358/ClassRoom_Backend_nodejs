@@ -41,7 +41,7 @@ export const getStudentClasses = async (req, res) => {
 
     // Find the student and populate their classes (only _id and name)
     const student = await Users.findById(studentId)
-      .populate("classes", "_id name")
+      .populate("classes", "_id name status")
       .select("classes");
 
     if (!student) {
@@ -53,6 +53,7 @@ export const getStudentClasses = async (req, res) => {
       classes: student.classes.map(c => ({
         id: c._id,
         name: c.name,
+        status: c.status
       })),
     });
   } catch (err) {
