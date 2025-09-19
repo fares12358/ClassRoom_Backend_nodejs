@@ -13,6 +13,4 @@ router.post("/logout", logoutUser); // logout user app flutter
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
-
-
 export default router;

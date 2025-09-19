@@ -425,6 +425,77 @@ export const getAllClasses = async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 };
+// ✅ GET Class by ID
+export const getclassByID = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Find class (no populate needed since we only want count)
+        const classData = await Class.findById(id).lean();
+
+        if (!classData) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        // Build response with only required fields
+        const response = {
+            _id: classData._id,
+            name: classData.name,
+            description: classData.description,
+            status: classData.status,
+            createdAt: classData.createdAt,
+            studentsCount: classData.students ? classData.students.length : 0,
+        };
+
+        res.status(200).json(response);
+    } catch (error) {
+        console.error("Error fetching class:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+// ✅ UPDATE Class by ID (only name, description, status)
+export const updateClassByID = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, status } = req.body;
+
+        // Validate status if provided
+        if (status && !["active", "pending"].includes(status)) {
+            return res.status(400).json({ message: "Invalid status value" });
+        }
+
+        // Build update object dynamically (only provided fields)
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (description) updateData.description = description;
+        if (status) updateData.status = status;
+
+        const updatedClass = await Class.findByIdAndUpdate(
+            id,
+            { $set: updateData },
+            { new: true, runValidators: true, lean: true }
+        );
+
+        if (!updatedClass) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        res.status(200).json({
+            message: "Class updated successfully",
+            class: {
+                _id: updatedClass._id,
+                name: updatedClass.name,
+                description: updatedClass.description,
+                status: updatedClass.status,
+                createdAt: updatedClass.createdAt,
+            },
+        });
+    } catch (error) {
+        console.error("Error updating class:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
 // ✅ إضافة كلاس جديد
 export const addClasses = async (req, res) => {
     try {
@@ -457,37 +528,7 @@ export const addClasses = async (req, res) => {
         res.status(500).json({ message: "خطأ في الخادم" });
     }
 };
-export const updateClasses = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { name, description, status } = req.body;
 
-        // التحقق من أن الـ status صحيح
-        const allowedStatuses = ["active", "pending"];
-        if (status && !allowedStatuses.includes(status)) {
-            return res.status(400).json({ message: "قيمة status غير صالحة" });
-        }
-
-        // تحديث الكلاس
-        const updatedClass = await Class.findByIdAndUpdate(
-            id,
-            { name, description, status },
-            { new: true, runValidators: true } // يرجّع النسخة الجديدة ويتأكد من الفاليديشن
-        );
-
-        if (!updatedClass) {
-            return res.status(404).json({ message: "الكلاس غير موجود" });
-        }
-
-        res.status(200).json({
-            message: "تم تحديث الكلاس بنجاح",
-            classroom: updatedClass,
-        });
-    } catch (error) {
-        console.error("Error updating class:", error);
-        res.status(500).json({ message: "خطأ في السيرفر", error: error.message });
-    }
-};
 // resendPaymentLink by admin dash
 export const resendPaymentLink = async (req, res) => {
     try {

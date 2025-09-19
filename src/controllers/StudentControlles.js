@@ -238,7 +238,7 @@ export const getAllTasksForStudent = async (req, res) => {
     res.json({ tasks });
   } catch (err) {
     console.error("Get tasks error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'feild get tasks' });
   }
 };
 ///////////////////////////////////////////////////////////////////////////////
@@ -298,7 +298,7 @@ export const submitTaskSolution = async (req, res) => {
 
   } catch (err) {
     console.error("Submit solution error:", err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'feild to submite' });
   }
 };
 

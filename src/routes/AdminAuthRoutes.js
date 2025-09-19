@@ -7,10 +7,11 @@ import {
     deleteAdmin, deleteClasses, deleteFilesClass, deleteNoteClasses, deleteTaskClass, deleteVideo, forgotAdminPassword,
     getAdminBYID, getAdmins, getAllClasses, getAllFilesClass, getAllStudents, getAllTasksClass, getAllTransactions,
     getAllVideos,
+    getclassByID,
     getFilesClass,
     getNotesClasses, getStudentClasses, getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, getVideoById, loginAdmin,
     pendingUsers,
-    reloginAdmin, resendPaymentLink, resetAdminPassword, updateAdmin, updateClasses, updateFilesClass, updateNoteClasses,
+    reloginAdmin, resendPaymentLink, resetAdminPassword, updateAdmin, updateClassByID, updateFilesClass, updateNoteClasses,
     updateTaskClass,
     updateVideo
 } from "../controllers/AdminAuthControlles.js";
@@ -45,9 +46,10 @@ router.post("/resend-payment-link", resendPaymentLink);
 
 //classes
 router.get("/classes", getAllClasses);
-router.post("/classes/add", addClasses);
-router.put("/classes/:id", updateClasses);
-router.delete("/classes/:id", deleteClasses);
+router.get("/classe/:id", getclassByID);
+router.put("/classe/:id", updateClassByID);
+router.delete("/classe/:id", deleteClasses);
+router.post("/classe/add", addClasses);
 
 // class matrial
 //notes
