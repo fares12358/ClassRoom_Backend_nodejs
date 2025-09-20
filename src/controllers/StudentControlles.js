@@ -1,5 +1,6 @@
 import cloudinary from "../config/cloudinary.js";
 import Class from "../models/Class.js";
+import Plan from "../models/Plan.js";
 import Users from "../models/Users.js";
 import bcrypt from "bcryptjs";
 
@@ -104,7 +105,34 @@ export const updateStudentData = async (req, res) => {
   }
 };
 
+export const getStudentPlan = async (req, res) => {
+  try {
+    const {planId } = req.params;
 
+    // Find the plan by ID
+    const plan = await Plan.findById(planId).lean();
+    if (!plan) {
+      return res.status(404).json({ message: "Plan not found" });
+    }
+
+    // Return only needed fields
+    const response = {
+      id: plan._id,
+      title: plan.title,
+      description: plan.description,
+      price: plan.price,
+      durationValue: plan.durationValue,
+      durationType: plan.durationType,
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error fetching plan:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 export const getStudentClasseNote = async (req, res) => {
   try {
     const { classId } = req.params;
@@ -134,8 +162,6 @@ export const getStudentClasseNote = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
-///////////////////////////////////////////////////////////////////////////////
 
 // ✅ Get single PDF (Student) - 24h signed link
 export const getFilesClasses = async (req, res) => {

@@ -1,13 +1,14 @@
 import express from "express";
-import { getAllFilesClass, getAllTasksForStudent, getFilesClasses, getStudentClasseNote, getStudentClasses, getStudentVideoById, getStudentVideos, getTaskForStudent, joinClass, submitTaskSolution, updateStudentData } from "../controllers/StudentControlles.js";
+import { getAllFilesClass, getAllTasksForStudent, getFilesClasses, getStudentClasseNote, getStudentClasses, getStudentPlan, getStudentVideoById, getStudentVideos, getTaskForStudent, joinClass, submitTaskSolution, updateStudentData } from "../controllers/StudentControlles.js";
 import upload from "../middleware/multer.js";
 const router = express.Router();
 
+//class
 router.post("/join-class", joinClass);
-
 router.get("/:studentId/classes", getStudentClasses);
-
+// profile
 router.put("/:studentId/updateUser", updateStudentData);
+router.get("/plan/:planId", getStudentPlan);
 //notes
 router.get("/classes/:classId/notes", getStudentClasseNote);
 //files
