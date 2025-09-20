@@ -1,6 +1,8 @@
 import cloudinary from "../config/cloudinary.js";
 import Class from "../models/Class.js";
 import Users from "../models/Users.js";
+import bcrypt from "bcryptjs";
+
 
 export const joinClass = async (req, res) => {
   try {
@@ -38,7 +40,6 @@ export const getStudentClasses = async (req, res) => {
     if (!studentId) {
       return res.status(400).json({ message: "studentId is required" });
     }
-
     // Find the student and populate their classes (only _id and name)
     const student = await Users.findById(studentId)
       .populate("classes", "_id name status")
@@ -61,6 +62,49 @@ export const getStudentClasses = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
+// ✅ Update Student Data
+export const updateStudentData = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { name, phone, email, password } = req.body;
+
+    // Find user by ID
+    const user = await Users.findById(studentId);
+    if (!user) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Update only provided fields
+    if (name) user.name = name;
+    if (phone) user.phone = phone;
+    if (email) user.email = email;
+
+    if (password) {
+      // Hash the new password before saving
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Student updated successfully",
+      student: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        status: user.status,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating student:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
 export const getStudentClasseNote = async (req, res) => {
   try {
     const { classId } = req.params;
