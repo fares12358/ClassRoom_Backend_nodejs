@@ -120,7 +120,7 @@ export const getStudentPlan = async (req, res) => {
       id: plan._id,
       title: plan.title,
       description: plan.description,
-      price: plan.price,
+      price: (plan.price / 100).toFixed(2),
       durationValue: plan.durationValue,
       durationType: plan.durationType,
     };
