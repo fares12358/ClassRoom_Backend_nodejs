@@ -64,72 +64,131 @@ export const createCheckoutSession = async (req, res) => {
  */
 export const stripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
+
+  let event;
   try {
-    const event = stripe.webhooks.constructEvent(
+    event = stripe.webhooks.constructEvent(
       req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
+  } catch (err) {
+    console.error("❌ Webhook signature verification failed:", err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
 
+  try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      const pendingId = session.metadata.pendingId;
 
-      const pendingUser = await PendingUser.findById(pendingId).populate("planId");
-      if (!pendingUser) return res.sendStatus(404);
+      // Metadata can contain either pendingId OR (userId + planId)
+      const { pendingId, userId, planId } = session.metadata || {};
 
+      // ⚡ Case 1: NEW USER SIGNUP (from PendingUser)
+      if (pendingId) {
+        const pendingUser = await PendingUser.findById(pendingId).populate("planId");
+        if (!pendingUser) return res.sendStatus(404);
 
-      const plan = pendingUser.planId;
+        const plan = pendingUser.planId;
 
-      // Calculate expiration date based on plan
-      let expiresAt = new Date();
-      switch (plan.durationType) {
-        case "day":
-          expiresAt.setDate(expiresAt.getDate() + plan.durationValue);
-          break;
-        case "week":
-          expiresAt.setDate(expiresAt.getDate() + plan.durationValue * 7);
-          break;
-        case "month":
-          expiresAt.setMonth(expiresAt.getMonth() + plan.durationValue);
-          break;
-        case "year":
-          expiresAt.setFullYear(expiresAt.getFullYear() + plan.durationValue);
-          break;
+        // Calculate expiration date
+        let expiresAt = new Date();
+        switch (plan.durationType) {
+          case "day":
+            expiresAt.setDate(expiresAt.getDate() + plan.durationValue);
+            break;
+          case "week":
+            expiresAt.setDate(expiresAt.getDate() + plan.durationValue * 7);
+            break;
+          case "month":
+            expiresAt.setMonth(expiresAt.getMonth() + plan.durationValue);
+            break;
+          case "year":
+            expiresAt.setFullYear(expiresAt.getFullYear() + plan.durationValue);
+            break;
+        }
+
+        // Create user from pending
+        const newUser = new User({
+          _id: pendingUser._id, // force same ID
+          name: pendingUser.name,
+          email: pendingUser.email,
+          phone: pendingUser.phone,
+          password: pendingUser.password,
+          plan: plan._id,
+          status: "active",
+          expiresAt,
+        });
+
+        newUser.accessToken = generateAccessToken(newUser);
+        await newUser.save();
+
+        // Update transaction
+        await Transaction.findOneAndUpdate(
+          { stripeSessionId: session.id },
+          {
+            user: newUser._id,
+            stripePaymentId: session.payment_intent,
+            status: "succeeded",
+          }
+        );
+
+        // Remove pending user
+        await PendingUser.findByIdAndDelete(pendingId);
+
+        await sendPaymentSuccessEmail(newUser);
       }
 
-      const newUser = new User({
-        _id: pendingUser._id, // ✅ force same id
-        name: pendingUser.name,
-        email: pendingUser.email,
-        phone: pendingUser.phone,
-        password: pendingUser.password,
-        plan: pendingUser.planId._id,
-        status: "active",
-        expiresAt,
-      });
+      // ⚡ Case 2: EXISTING USER RESUB / PLAN CHANGE
+      if (userId && planId) {
+        const user = await User.findById(userId);
+        const plan = await Plan.findById(planId);
+        if (!user || !plan) return res.sendStatus(404);
 
-      newUser.accessToken = generateAccessToken(newUser);
-      await newUser.save();
+        let expiresAt = new Date();
 
-      // ✅ Update transaction
-      await Transaction.findOneAndUpdate(
-        { stripeSessionId: session.id },
-        {
-          user: newUser._id,
-          stripePaymentId: session.payment_intent,
-          status: "succeeded",
+        // If still active, extend; else reset from today
+        if (user.expiresAt && user.expiresAt > new Date()) {
+          expiresAt = new Date(user.expiresAt);
         }
-      );
 
-      await PendingUser.findByIdAndDelete(pendingId);
-      await sendPaymentSuccessEmail(newUser);
+        switch (plan.durationType) {
+          case "day":
+            expiresAt.setDate(expiresAt.getDate() + plan.durationValue);
+            break;
+          case "week":
+            expiresAt.setDate(expiresAt.getDate() + plan.durationValue * 7);
+            break;
+          case "month":
+            expiresAt.setMonth(expiresAt.getMonth() + plan.durationValue);
+            break;
+          case "year":
+            expiresAt.setFullYear(expiresAt.getFullYear() + plan.durationValue);
+            break;
+        }
+
+        user.plan = plan._id;
+        user.status = "active";
+        user.expiresAt = expiresAt;
+        await user.save();
+
+        // Update transaction
+        await Transaction.findOneAndUpdate(
+          { stripeSessionId: session.id },
+          {
+            stripePaymentId: session.payment_intent,
+            status: "succeeded",
+          }
+        );
+
+        await sendPaymentSuccessEmail(user);
+      }
     }
 
     res.status(200).json({ received: true });
   } catch (err) {
-    console.error("Webhook error:", err.message);
-    res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error("❌ Webhook processing error:", err);
+    res.status(500).json({ error: err.message });
   }
 };
 
