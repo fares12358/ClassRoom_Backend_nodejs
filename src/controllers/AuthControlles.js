@@ -44,15 +44,16 @@ export const getPendingUser = async (req, res) => {
 /**
  * Check signup status using pendingId
  */
+
 export const getSignupStatus = async (req, res) => {
   try {
-    const { pendingId } = req.params;
-    const pending = await PendingUser.findById(pendingId).populate("planId");
+    const { id } = req.params;
+    const pending = await PendingUser.findById(id).populate("planId");
 
     if (pending) return res.json({ status: "pending", plan: pending.planId });
 
-    const user = await User.findById(pendingId);
-    if (user) return res.json({ status: "active", user: { id: user._id, email: user.email } });
+    const user = await User.findById(id);
+    if (user.status == 'active') return res.json({ status: user.status, user: { id: user._id, email: user.email } });
 
     res.json({ status: "not_found" });
   } catch (err) {

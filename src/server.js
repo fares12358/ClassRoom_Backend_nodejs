@@ -17,7 +17,9 @@ const app = express();
 app.use(cors({ origin: "*" }));
 
 // Stripe webhook needs raw body
-app.use("/api/payment/webhook", bodyParser.raw({ type: "application/json" }));
+app.post("/api/payment/webhook", bodyParser.raw({ type: "application/json" }));
+app.post("/api/payment/subscription-webhook", bodyParser.raw({ type: "application/json" }));
+
 
 // Normal JSON requests
 app.use((req, res, next) => {
