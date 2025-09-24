@@ -1,5 +1,5 @@
 import express from "express";
-import { createCheckoutSession, manageSubscription, retryPayment, stripeWebhook, subscriptionWebhook } from "../controllers/paymentController.js";
+import { createCheckoutSession, manageSubscription, retryPayment, stripeWebhook } from "../controllers/paymentController.js";
 import bodyParser from "body-parser";
 
 const router = express.Router();

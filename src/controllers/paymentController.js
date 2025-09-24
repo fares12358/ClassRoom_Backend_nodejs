@@ -195,7 +195,6 @@ export const stripeWebhook = async (req, res) => {
 /**
  * repay if payment canceled
  */
-
 export const retryPayment = async (req, res) => {
   try {
     const { id } = req.body;
@@ -332,92 +331,6 @@ export const manageSubscription = async (req, res) => {
     res.json({ url: session.url });
   } catch (error) {
     console.error("Manage Subscription Error:", error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-/**
- * Stripe webhook for payment confirmation
- */
-export const subscriptionWebhook = async (req, res) => {
-  console.log("🔔 Subscription webhook triggered:", req.body);
-  const sig = req.headers["stripe-signature"];
-
-  try {
-    const event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object;
-      const { userId, planId } = session.metadata;
-
-      const user = await User.findById(userId);
-      const plan = await Plan.findById(planId);
-
-      if (!user || !plan) return res.sendStatus(404);
-
-      // 1️⃣ Calculate new expiration date
-      let expiresAt = new Date();
-
-      switch (plan.durationType) {
-        case "day":
-          expiresAt.setDate(expiresAt.getDate() + plan.durationValue);
-          break;
-        case "week":
-          expiresAt.setDate(expiresAt.getDate() + plan.durationValue * 7);
-          break;
-        case "month":
-          expiresAt.setMonth(expiresAt.getMonth() + plan.durationValue);
-          break;
-        case "year":
-          expiresAt.setFullYear(expiresAt.getFullYear() + plan.durationValue);
-          break;
-      }
-
-      // ⚡ If user already had time left and is renewing → extend instead of overwrite
-      if (user.expiresAt && user.expiresAt > new Date()) {
-        expiresAt = new Date(user.expiresAt); // start from old expiry
-        switch (plan.durationType) {
-          case "day":
-            expiresAt.setDate(expiresAt.getDate() + plan.durationValue);
-            break;
-          case "week":
-            expiresAt.setDate(expiresAt.getDate() + plan.durationValue * 7);
-            break;
-          case "month":
-            expiresAt.setMonth(expiresAt.getMonth() + plan.durationValue);
-            break;
-          case "year":
-            expiresAt.setFullYear(expiresAt.getFullYear() + plan.durationValue);
-            break;
-        }
-      }
-
-      // 2️⃣ Update user details
-      user.plan = plan._id;
-      user.status = "active";
-      user.expiresAt = expiresAt;
-      await user.save();
-
-      // 3️⃣ Update transaction
-      await Transaction.findOneAndUpdate(
-        { stripeSessionId: session.id },
-        {
-          stripePaymentId: session.payment_intent,
-          status: "succeeded",
-        }
-      );
-
-      // 4️⃣ Send success email
-      await sendPaymentSuccessEmail(user);
-    }
-
-    res.status(200).json({ received: true });
-  } catch (err) {
-    console.error("Webhook error:", err.message);
-    res.status(400).send(`Webhook Error: ${err.message}`);
+    res.status(500).json({ message:"error create payment",error: error.message });
   }
 };

@@ -64,6 +64,48 @@ export const getStudentClasses = async (req, res) => {
   }
 };
 
+
+export const getStudentData = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    // Find user by ID and populate plan details
+    const user = await Users.findById(studentId)
+      .populate("plan", "title description durationValue durationType price _id") // only select needed fields
+      .lean(); // return plain JS object for easier formatting
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Build response
+    const response = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      status: user.status,
+      createdAt: user.createdAt,
+      expiresAt: user.expiresAt,
+      plan: user.plan
+        ? {
+          id: user.plan._id,
+          title: user.plan.title,
+          description: user.plan.description,
+          price: (user.plan.price / 100).toFixed(2),
+          durationValue:user.plan.durationValue,
+          durationType:user.plan.durationType
+        }
+        : null,
+    };
+
+    res.status(200).json(response);
+  } catch (err) {
+    console.error("Error in getStudentData:", err.message);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
 // ✅ Update Student Data
 export const updateStudentData = async (req, res) => {
   try {
@@ -107,7 +149,7 @@ export const updateStudentData = async (req, res) => {
 
 export const getStudentPlan = async (req, res) => {
   try {
-    const {planId } = req.params;
+    const { planId } = req.params;
 
     // Find the plan by ID
     const plan = await Plan.findById(planId).lean();
