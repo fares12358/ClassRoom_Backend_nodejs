@@ -358,9 +358,7 @@ export const getAllTasksForStudent = async (req, res) => {
 // solve
 export const submitTaskSolution = async (req, res) => {
   try {
-    const { classId, taskId } = req.params;
-    const studentId = req.user._id; // get from auth middleware (JWT/session)
-
+    const { studentId,classId, taskId } = req.params;
     if (!req.file) {
       return res.status(400).json({ message: "No solution file uploaded" });
     }

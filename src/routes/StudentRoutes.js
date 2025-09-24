@@ -21,7 +21,7 @@ router.get("/class/:classId/tasks", getAllTasksForStudent);
 router.get("/class/:classId/task/:taskId", getTaskForStudent);
 //recived
 router.post(
-    "/class/:classId/task/:taskId/solution",
+    "/:studentId/class/:classId/task/:taskId/solution",
     upload.single("solution"),
     submitTaskSolution
 );
