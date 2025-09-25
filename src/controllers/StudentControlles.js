@@ -4,7 +4,6 @@ import Plan from "../models/Plan.js";
 import Users from "../models/Users.js";
 import bcrypt from "bcryptjs";
 
-
 export const joinClass = async (req, res) => {
   try {
     const { classId, studentId } = req.body;
@@ -63,8 +62,6 @@ export const getStudentClasses = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
-
 export const getStudentData = async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -93,8 +90,8 @@ export const getStudentData = async (req, res) => {
           title: user.plan.title,
           description: user.plan.description,
           price: (user.plan.price / 100).toFixed(2),
-          durationValue:user.plan.durationValue,
-          durationType:user.plan.durationType
+          durationValue: user.plan.durationValue,
+          durationType: user.plan.durationType
         }
         : null,
     };
@@ -105,7 +102,6 @@ export const getStudentData = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
 // ✅ Update Student Data
 export const updateStudentData = async (req, res) => {
   try {
@@ -173,7 +169,6 @@ export const getStudentPlan = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 ///////////////////////////////////////////////////////////////////////////////
 export const getStudentClasseNote = async (req, res) => {
   try {
@@ -318,7 +313,6 @@ export const getTaskForStudent = async (req, res) => {
 };
 
 // ✅ Student: Get all Tasks (12h signed links)
-
 export const getAllTasksForStudent = async (req, res) => {
   try {
     const { classId } = req.params;
@@ -345,6 +339,7 @@ export const getAllTasksForStudent = async (req, res) => {
         addedAt: task.addedAt,
         url: signedUrl,
         expiresAt: expireTime,
+        submittedStudents: task.submissions.map((sub) => sub.student?._id), 
       };
     });
 
@@ -358,7 +353,7 @@ export const getAllTasksForStudent = async (req, res) => {
 // solve
 export const submitTaskSolution = async (req, res) => {
   try {
-    const { studentId,classId, taskId } = req.params;
+    const { studentId, classId, taskId } = req.params;
     if (!req.file) {
       return res.status(400).json({ message: "No solution file uploaded" });
     }

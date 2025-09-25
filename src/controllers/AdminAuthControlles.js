@@ -1176,41 +1176,62 @@ export const getTaskSubmissionsAdmin = async (req, res) => {
 };
 export const getTaskesSubmissions = async (req, res) => {
     try {
-        const { classId } = req.params;
-        const classroom = await Class.findById(classId)
-            .populate("tasks.submissions.student", "name email phone");
-
-        if (!classroom) return res.status(404).json({ message: "Class not found" });
-
-        const tasks = classroom.tasks.map((task) => ({
-            _id: task._id,
-            name: task.name,
-            description: task.description,
-            url: task.url,
-            submissions: task.submissions.map((sub) => ({
-                student: {
-                    name: sub.student?.name,
-                    email: sub.student?.email,
-                    phone: sub.student?.phone,
-                },
-                solution: {
-                    url: sub.url,
-                    submittedAt: sub.submittedAt,
-                },
-            })),
-        }));
-
-        res.json(tasks);
+      const { classId } = req.params;
+      const classroom = await Class.findById(classId)
+        .populate("tasks.submissions.student", "name email phone");
+  
+      if (!classroom) return res.status(404).json({ message: "Class not found" });
+  
+      const expireTime = Math.floor(Date.now() / 1000) + 60 * 60 * 12; // 12h
+  
+      const tasks = classroom.tasks.map((task) => {
+        // signed url for the task pdf
+        const taskSignedUrl = cloudinary.utils.private_download_url(
+          task.public_id,
+          "pdf",
+          {
+            resource_type: "raw",
+            expires_at: expireTime,
+          }
+        );
+  
+        return {
+          _id: task._id,
+          name: task.name,
+          description: task.description,
+          url: taskSignedUrl,
+          submissions: task.submissions.map((sub) => {
+            // signed url for each submission
+            const subSignedUrl = cloudinary.utils.private_download_url(
+              sub.public_id,
+              "pdf",
+              {
+                resource_type: "raw",
+                expires_at: expireTime,
+              }
+            );
+  
+            return {
+              student: {
+                name: sub.student?.name,
+                email: sub.student?.email,
+                phone: sub.student?.phone,
+              },
+              solution: {
+                url: subSignedUrl,
+                submittedAt: sub.submittedAt,
+              },
+            };
+          }),
+        };
+      });
+  
+      res.json(tasks);
     } catch (err) {
-        console.log(err);
-
-        res.status(500).json({ message: err.message });
+      console.error("Get submissions error:", err);
+      res.status(500).json({ message: "failed get submissions" });
     }
-};
-
-
-
-
+  };
 
 // ✅ Add video (after frontend uploads to Cloudinary)
 export const addVideo = async (req, res) => {
