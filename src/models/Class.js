@@ -18,12 +18,12 @@ const pdfSchema = new mongoose.Schema({
 });
 
 const videoSchema = new mongoose.Schema({
-    public_id: { type: String, required: true }, // Cloudinary ID
-    url: { type: String, required: true },       // Cloudinary secure URL
-    name: { type: String, required: true },
+    public_id: { type: String, required: true },
+    url: { type: String, required: true },
+    name: { type: String },
     description: { type: String },
-    addedAt: { type: Date, default: Date.now },
-});
+    uploadedAt: { type: Date, default: Date.now },
+  });
 
 const classSchema = new mongoose.Schema({
     name: { type: String, required: true },

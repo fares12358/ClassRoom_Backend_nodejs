@@ -289,6 +289,11 @@ export const getTaskForStudent = async (req, res) => {
     if (!task) return res.status(404).json({ message: "Task not found" });
 
     const expireTime = Math.floor(Date.now() / 1000) + 60 * 60 * 12;
+
+    const submittedStudents = task.submissions.map((sub) =>
+      sub.student?.toString()
+    );
+
     const signedUrl = cloudinary.utils.private_download_url(
       task.public_id,
       "pdf",
@@ -305,8 +310,9 @@ export const getTaskForStudent = async (req, res) => {
       addedAt: task.addedAt,
       url: signedUrl,
       expiresAt: expireTime,
+      submittedStudents
     });
-  } catch (err) {
+  } catch (err) {vvvvvv
     console.error("Get task error:", err);
     res.status(500).json({ message: err.message });
   }
@@ -339,7 +345,7 @@ export const getAllTasksForStudent = async (req, res) => {
         addedAt: task.addedAt,
         url: signedUrl,
         expiresAt: expireTime,
-        submittedStudents: task.submissions.map((sub) => sub.student?._id), 
+        submittedStudents: task.submissions.map((sub) => sub.student?._id),
       };
     });
 

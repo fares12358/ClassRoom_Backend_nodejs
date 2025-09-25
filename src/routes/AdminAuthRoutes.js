@@ -3,17 +3,15 @@ import { adminMiddleware, authMiddleware } from "../middleware/authMiddleware.js
 import {
     addAdmin, addClasses, addFilesClass, addNoteClasses,
     addTaskClass,
-    addVideo,
-    deleteAdmin, deleteClasses, deleteFilesClass, deleteNoteClasses, deleteTaskClass, deleteVideo, forgotAdminPassword,
+    deleteAdmin, deleteClasses, deleteFilesClass, deleteNoteClasses, deleteTaskClass, forgotAdminPassword,
     getAdminBYID, getAdmins, getAllClasses, getAllFilesClass, getAllStudents, getAllTasksClass, getAllTransactions,
-    getAllVideos,
     getclassByID,
     getFilesClass,
-    getNotesClasses, getStudentClasses, getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, getVideoById, loginAdmin,
+    getNotesClasses, getStudentClasses, getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, loginAdmin,
     pendingUsers,
     reloginAdmin, resendPaymentLink, resetAdminPassword, updateAdmin, updateClassByID, updateFilesClass, updateNoteClasses,
     updateTaskClass,
-    updateVideo
+    uploadVideo
 } from "../controllers/AdminAuthControlles.js";
 import upload from "../middleware/multer.js";
 
@@ -78,12 +76,11 @@ router.get("/class/:classId/tasks", getAllTasksClass);
 //solve
 router.get("/class/:classId/task/:taskId/submissions", getTaskSubmissionsAdmin);
 router.get("/class/:classId/tasks/submissions", getTaskesSubmissions);
+
 //video
-router.post("/class/:classId/video", upload.single("video"), addVideo);
-router.put("/class/:classId/video/:videoId", updateVideo);
-router.delete("/class/:classId/video/:videoId", deleteVideo);
-router.get("/class/:classId/videos", getAllVideos);
-router.get("/class/:classId/video/:videoId", getVideoById);
+// Upload video to a class
+router.post("classe/:classId/videos", uploadVideo);
+
 
 
 export default router;
