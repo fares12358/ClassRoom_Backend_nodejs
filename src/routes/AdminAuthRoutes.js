@@ -1,17 +1,14 @@
 import express from "express";
 import { adminMiddleware, authMiddleware } from "../middleware/authMiddleware.js";
 import {
-    addAdmin, addClasses, addFilesClass, addNoteClasses,
-    addTaskClass,
-    deleteAdmin, deleteClasses, deleteFilesClass, deleteNoteClasses, deleteTaskClass, deleteVideo, forgotAdminPassword,
-    getAdminBYID, getAdmins, getAllClasses, getAllFilesClass, getAllStudents, getAllTasksClass, getAllTransactions,
-    getclassByID,
-    getFilesClass,
-    getNotesClasses, getStudentClasses, getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, getVideos, loginAdmin,
-    pendingUsers,
-    reloginAdmin, resendPaymentLink, resetAdminPassword, updateAdmin, updateClassByID, updateFilesClass, updateNoteClasses,
-    updateTaskClass,
-    uploadVideo
+    addAdmin, addClasses, addFilesClass, addNoteClasses, addTaskClass,
+    deleteAdmin, deleteClasses, deleteFilesClass, deleteNoteClasses,
+    deleteTaskClass, deleteVideo, forgotAdminPassword, getAdminBYID,
+    getAdmins, getAllClasses, getAllFilesClass, getAllStudents, getAllTasksClass,
+    getAllTransactions, getclassByID, getFilesClass, getNotesClasses, getStudentClasses,
+    getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, getVideos, KickStudentClasses, loginAdmin,
+    pendingUsers, reloginAdmin, resendPaymentLink, resetAdminPassword, updateAdmin,
+    updateClassByID, updateFilesClass, updateNoteClasses, updateTaskClass, uploadVideo
 } from "../controllers/AdminAuthControlles.js";
 import upload from "../middleware/multer.js";
 
@@ -43,11 +40,11 @@ router.get("/pendingUsers", pendingUsers);
 router.post("/resend-payment-link", resendPaymentLink);
 
 //classes
+router.post("/classe/add", addClasses);
 router.get("/classes", getAllClasses);
 router.get("/classe/:id", getclassByID);
 router.put("/classe/:id", updateClassByID);
 router.delete("/classe/:id", deleteClasses);
-router.post("/classe/add", addClasses);
 
 // class matrial
 //notes
@@ -58,6 +55,7 @@ router.delete("/classe/:id/note/:noteId", deleteNoteClasses);
 
 //students
 router.get("/classe/:id/student", getStudentClasses);
+router.post("/classe/:classId/student/:studentId", KickStudentClasses);
 
 //bdfs
 router.post("/classe/:classId/file", upload.single("pdf"), addFilesClass);

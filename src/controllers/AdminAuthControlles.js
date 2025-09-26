@@ -8,6 +8,7 @@ import Plan from "../models/Plan.js";
 import Class from "../models/Class.js";
 import PendingUser from "../models/PendingUser.js";
 import cloudinary from "../config/cloudinary.js";
+import { google } from "googleapis";
 
 // Admin login
 export const loginAdmin = async (req, res) => {
@@ -555,7 +556,92 @@ export const resendPaymentLink = async (req, res) => {
         });
     }
 };
-export const deleteClasses = async (req, res) => { }
+
+
+export const deleteClasses = async (req, res) => {
+    try {
+      const { id } = req.params;
+  
+      // 1️⃣ Find class
+      const classDoc = await Class.findById(id);
+      if (!classDoc) {
+        return res.status(404).json({ success: false, message: "Class not found" });
+      }
+  
+      // 2️⃣ Delete videos (YouTube if possible)
+      for (const video of classDoc.videos) {
+        try {
+          const yt_token = req.headers.authorization?.split(" ")[1];
+          if (yt_token) {
+            const oauth2Client = new google.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET,
+              process.env.GOOGLE_REDIRECT_URI
+            );
+            oauth2Client.setCredentials({ access_token: yt_token });
+  
+            const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+            await youtube.videos.delete({ id: video.videoId });
+  
+            console.log(`✅ Deleted YouTube video: ${video.videoId}`);
+          }
+        } catch (ytErr) {
+          console.error("❌ YouTube delete error:", ytErr.response?.data || ytErr.message);
+        }
+      }
+  
+      // 3️⃣ Delete PDFs from Cloudinary
+      for (const pdf of classDoc.pdfs) {
+        if (pdf.public_id) {
+          await cloudinary.uploader.destroy(pdf.public_id, {
+            resource_type: "raw",
+            type: "private",
+          });
+        }
+      }
+  
+      // 4️⃣ Delete tasks + their submissions from Cloudinary
+      for (const task of classDoc.tasks) {
+        if (task.public_id) {
+          await cloudinary.uploader.destroy(task.public_id, {
+            resource_type: "raw",
+            type: "private",
+          });
+        }
+  
+        if (task.submissions && task.submissions.length > 0) {
+          for (const sub of task.submissions) {
+            if (sub.public_id) {
+              await cloudinary.uploader.destroy(sub.public_id, {
+                resource_type: "raw",
+                type: "private",
+              });
+            }
+          }
+        }
+      }
+  
+      // 5️⃣ Remove class reference from all students
+      await Users.updateMany(
+        { classes: id },
+        { $pull: { classes: id } }
+      );
+  
+      // 6️⃣ Finally delete class itself
+      await Class.findByIdAndDelete(id);
+  
+      res.status(200).json({
+        success: true,
+        message: "Class and all related data deleted successfully",
+      });
+    } catch (err) {
+      console.error("❌ Error deleting class:", err);
+      res.status(500).json({ success: false, message: "Failed to delete class" });
+    }
+  };
+
+
+
 // class matrial
 //notes
 export const addNoteClasses = async (req, res) => {
@@ -625,6 +711,7 @@ export const updateNoteClasses = async (req, res) => {
     }
 };
 // DELETE /classe/:id/notes/:noteId
+
 export const deleteNoteClasses = async (req, res) => {
     const { id, noteId } = req.params;
 
@@ -678,6 +765,49 @@ export const getStudentClasses = async (req, res) => {
         });
     }
 };
+
+export const KickStudentClasses = async (req, res) => {
+    try {
+        const { classId, studentId } = req.params;
+
+        // 1️⃣ Find class
+        const classDoc = await Class.findById(classId);
+        if (!classDoc)
+            return res.status(404).json({ success: false, message: "Class not found" });
+
+        // 2️⃣ Find student
+        const userDoc = await Users.findById(studentId);
+        if (!userDoc)
+            return res.status(404).json({ success: false, message: "Student not found" });
+
+        // 3️⃣ Remove student from class
+        const studentIndex = classDoc.students.indexOf(studentId);
+        if (studentIndex === -1)
+            return res.status(404).json({ success: false, message: "Student not in class" });
+
+        classDoc.students.splice(studentIndex, 1);
+        await classDoc.save();
+
+        // 4️⃣ Remove class from user
+        const classIndex = userDoc.classes.indexOf(classId);
+        if (classIndex !== -1) {
+            userDoc.classes.splice(classIndex, 1);
+            await userDoc.save();
+        }
+
+        // ✅ Done
+        res.json({
+            success: true,
+            message: "تم طرد الطالب بنجاح",
+            studentId,
+            classId,
+        });
+    } catch (err) {
+        console.error("Kick student error:", err);
+        res.status(500).json({ success: false, message: "فشل في طرد الطالب" });
+    }
+};
+
 // files (FDB)
 // ✅ Upload PDF (private)
 export const addFilesClass = async (req, res) => {
@@ -1055,16 +1185,30 @@ export const deleteTaskClass = async (req, res) => {
         const task = classDoc.tasks.id(taskId);
         if (!task) return res.status(404).json({ message: "Task not found" });
 
+        // 1️⃣ Delete the task file itself from Cloudinary
         await cloudinary.uploader.destroy(task.public_id, {
             resource_type: "raw",
             type: "private",
         });
 
+        // 2️⃣ Delete all submission files from Cloudinary
+        if (task.submissions && task.submissions.length > 0) {
+            for (const sub of task.submissions) {
+                if (sub.public_id) {
+                    await cloudinary.uploader.destroy(sub.public_id, {
+                        resource_type: "raw",
+                        type: "private",
+                    });
+                }
+            }
+        }
+
+        // 3️⃣ Remove the task from class
         task.deleteOne();
         await classDoc.save();
 
         res.status(200).json({
-            message: "Task deleted successfully",
+            message: "Task and its submissions deleted successfully",
             class: classDoc,
         });
     } catch (err) {
@@ -1072,6 +1216,7 @@ export const deleteTaskClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
 // ✅ Get single Task (24h signed link)
 export const getTaskClass = async (req, res) => {
     try {
@@ -1286,10 +1431,6 @@ export const getVideos = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
-
-import { google } from "googleapis";
-
 // DELETE /api/admin/classe/:classId/video/:videoId
 
 export const deleteVideo = async (req, res) => {

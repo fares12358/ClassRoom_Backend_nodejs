@@ -36,17 +36,7 @@ export const createCheckoutSession = async (req, res) => {
       success_url: `${process.env.FRONTEND_URL}/Pages/success?id=${pendingUser._id}`,
       cancel_url: `${process.env.FRONTEND_URL}/Pages/cancel?id=${pendingUser._id}`,
     });
-    // ✅ Create transaction entry
-    const transaction = new Transaction({
-      pendingUser: pendingUser._id,
-      plan: pendingUser.planId._id,
-      stripeSessionId: session.id,
-      amount: pendingUser.planId.price,
-      currency: "usd",
-      status: "pending",
-      checkoutUrl: session.url,
-    });
-    await transaction.save();
+
 
     pendingUser.checkoutUrl = session.url;
     await pendingUser.save();
@@ -123,15 +113,18 @@ export const stripeWebhook = async (req, res) => {
         newUser.accessToken = generateAccessToken(newUser);
         await newUser.save();
 
-        // Update transaction
-        await Transaction.findOneAndUpdate(
-          { stripeSessionId: session.id },
-          {
-            user: newUser._id,
-            stripePaymentId: session.payment_intent,
-            status: "succeeded",
-          }
-        );
+        // ✅ Create transaction for pending user
+        await Transaction.create({
+          pendingUser: pendingUser._id,
+          user: newUser._id,
+          plan: plan._id,
+          stripeSessionId: session.id,
+          stripePaymentId: session.payment_intent,
+          amount: plan.price,
+          currency: "usd",
+          checkoutUrl: session.url,
+          status: "succeeded",
+        });
 
         // Remove pending user
         await PendingUser.findByIdAndDelete(pendingId);
@@ -172,15 +165,21 @@ export const stripeWebhook = async (req, res) => {
         user.expiresAt = expiresAt;
         await user.save();
 
-        // Update transaction
+        // ✅ Create or update transaction for existing user
         await Transaction.findOneAndUpdate(
           { stripeSessionId: session.id },
           {
+            user: user._id,
+            plan: plan._id,
             stripePaymentId: session.payment_intent,
+            amount: plan.price,
+            currency: "usd",
+            checkoutUrl: session.url,
             status: "succeeded",
-          }
+          },
+          { upsert: true }
         );
-
+        
         await sendPaymentSuccessEmail(user);
       }
     }
@@ -224,21 +223,6 @@ export const retryPayment = async (req, res) => {
       success_url: `${process.env.FRONTEND_URL}/Pages/success?id=${pendingUser._id}`,
       cancel_url: `${process.env.FRONTEND_URL}/Pages/cancel?id=${pendingUser._id}`,
     });
-
-    // 3. Update Transaction (reuse old if exists, otherwise create new)
-    let transaction = await Transaction.findOne({ pendingUser: pendingUser._id, status: "pending" });
-    if (!transaction) {
-      transaction = new Transaction({
-        pendingUser: pendingUser._id,
-        plan: pendingUser.planId._id,
-        amount: pendingUser.planId.price,
-        currency: "usd",
-        status: "pending",
-      });
-    }
-    transaction.stripeSessionId = session.id;
-    transaction.checkoutUrl = session.url;
-    await transaction.save();
 
     // 4. Update pending user checkout link
     pendingUser.checkoutUrl = session.url;
@@ -302,23 +286,7 @@ export const manageSubscription = async (req, res) => {
       cancel_url: `${process.env.FRONTEND_URL}/Pages/cancel?id=${user._id}`,
     });
 
-    // 4. Create/Update transaction
-    let transaction = await Transaction.findOne({
-      user: user._id,
-      status: "pending",
-    });
-    if (!transaction) {
-      transaction = new Transaction({
-        user: user._id,
-        plan: plan._id,
-        amount: plan.price,
-        currency: "usd",
-        status: "pending",
-      });
-    }
-    transaction.stripeSessionId = session.id;
-    transaction.checkoutUrl = session.url;
-    await transaction.save();
+
 
     // 5. Update user as pending
     user.plan = plan._id;
@@ -331,6 +299,6 @@ export const manageSubscription = async (req, res) => {
     res.json({ url: session.url });
   } catch (error) {
     console.error("Manage Subscription Error:", error);
-    res.status(500).json({ message:"error create payment",error: error.message });
+    res.status(500).json({ message: "error create payment", error: error.message });
   }
 };
