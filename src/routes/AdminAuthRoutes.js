@@ -3,11 +3,11 @@ import { adminMiddleware, authMiddleware } from "../middleware/authMiddleware.js
 import {
     addAdmin, addClasses, addFilesClass, addNoteClasses,
     addTaskClass,
-    deleteAdmin, deleteClasses, deleteFilesClass, deleteNoteClasses, deleteTaskClass, forgotAdminPassword,
+    deleteAdmin, deleteClasses, deleteFilesClass, deleteNoteClasses, deleteTaskClass, deleteVideo, forgotAdminPassword,
     getAdminBYID, getAdmins, getAllClasses, getAllFilesClass, getAllStudents, getAllTasksClass, getAllTransactions,
     getclassByID,
     getFilesClass,
-    getNotesClasses, getStudentClasses, getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, loginAdmin,
+    getNotesClasses, getStudentClasses, getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, getVideos, loginAdmin,
     pendingUsers,
     reloginAdmin, resendPaymentLink, resetAdminPassword, updateAdmin, updateClassByID, updateFilesClass, updateNoteClasses,
     updateTaskClass,
@@ -79,7 +79,9 @@ router.get("/class/:classId/tasks/submissions", getTaskesSubmissions);
 
 //video
 // Upload video to a class
-router.post("classe/:classId/videos", uploadVideo);
+router.post("/classe/:classId/video", uploadVideo);
+router.get("/classe/:classId/video", getVideos);
+router.delete("/classe/:classId/video/:videoId", deleteVideo);
 
 
 

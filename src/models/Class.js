@@ -18,8 +18,7 @@ const pdfSchema = new mongoose.Schema({
 });
 
 const videoSchema = new mongoose.Schema({
-    public_id: { type: String, required: true },
-    url: { type: String, required: true },
+    videoId: { type: String, required: true },
     name: { type: String },
     description: { type: String },
     uploadedAt: { type: Date, default: Date.now },

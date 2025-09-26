@@ -312,13 +312,13 @@ export const getTaskForStudent = async (req, res) => {
       expiresAt: expireTime,
       submittedStudents
     });
-  } catch (err) {vvvvvv
+  } catch (err) {
+    vvvvvv
     console.error("Get task error:", err);
     res.status(500).json({ message: err.message });
   }
 };
 
-// ✅ Student: Get all Tasks (12h signed links)
 export const getAllTasksForStudent = async (req, res) => {
   try {
     const { classId } = req.params;
@@ -337,7 +337,6 @@ export const getAllTasksForStudent = async (req, res) => {
           expires_at: expireTime,
         }
       );
-
       return {
         _id: task._id,
         name: task.name,
@@ -355,6 +354,7 @@ export const getAllTasksForStudent = async (req, res) => {
     res.status(500).json({ message: 'feild get tasks' });
   }
 };
+
 ///////////////////////////////////////////////////////////////////////////////
 // solve
 export const submitTaskSolution = async (req, res) => {
@@ -413,37 +413,26 @@ export const submitTaskSolution = async (req, res) => {
     res.status(500).json({ message: 'feild to submite' });
   }
 };
-
-// Helper for signed video URL
-function generateSignedVideoUrl(publicId) {
-  return cloudinary.v2.url(publicId, {
-    resource_type: "video",
-    sign_url: true,
-    type: "authenticated",
-    secure: true,
-    expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 12 // 12h
-  });
-}
 // ✅ Get all videos for a class (student)
 export const getStudentVideos = async (req, res) => {
   try {
     const { classId } = req.params;
-    const classDoc = await Class.findById(classId);
-    if (!classDoc) return res.status(404).json({ msg: "Class not found" });
 
-    const videos = classDoc.videos.map(v => ({
-      _id: v._id,
+    const classroom = await Class.findById(classId).select("videos students");
+    if (!classroom) return res.status(404).json({ message: "Class not found" });
+
+    res.json(classroom.videos.map(v => ({
       name: v.name,
       description: v.description,
-      signedUrl: generateSignedVideoUrl(v.public_id),
-      addedAt: v.addedAt
-    }));
-
-    res.json(videos);
+      videoId: v.videoId, // Unlisted YouTube ID
+      uploadedAt: v.uploadedAt
+    })));
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("Error getClassVideos:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
+
 // ✅ Get single video by ID (student)
 export const getStudentVideoById = async (req, res) => {
   try {

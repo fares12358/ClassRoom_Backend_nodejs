@@ -1174,6 +1174,7 @@ export const getTaskSubmissionsAdmin = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
 export const getTaskesSubmissions = async (req, res) => {
     try {
         const { classId } = req.params;
@@ -1199,6 +1200,7 @@ export const getTaskesSubmissions = async (req, res) => {
                 _id: task._id,
                 name: task.name,
                 description: task.description,
+                addedAt: task.addedAt,
                 url: taskSignedUrl,
                 submissions: task.submissions.map((sub) => {
                     // signed url for each submission
@@ -1226,41 +1228,117 @@ export const getTaskesSubmissions = async (req, res) => {
             };
         });
 
-        res.json(tasks);
+        res.json({ tasks });
     } catch (err) {
         console.error("Get submissions error:", err);
-        res.status(500).json({ message: "failed get submissions" });
+        res.status(500).json({ message: "failed get submissions", error: err.message });
     }
 };
 
+// POST /api/classes/:classId/videos
+
 export const uploadVideo = async (req, res) => {
     try {
-      const { classId } = req.params;
-      const { public_id, url, name, description } = req.body;
-  
-      // Find class
-      const classData = await Class.findById(classId);
-      if (!classData) {
-        return res.status(404).json({ message: "Class not found" });
-      }
-  
-      // Push video metadata into videos array
-      classData.videos.push({
-        public_id,
-        url,
-        name,
-        description,
-        uploadedAt: new Date(),
-      });
-  
-      await classData.save();
-  
-      res.status(201).json({
-        message: "Video added successfully",
-        videos: classData.videos,
-      });
-    } catch (error) {
-      console.error("Error adding video:", error);
-      res.status(500).json({ message: "Server error", error: error.message });
+        const { classId } = req.params;
+        const { videoId, name, description } = req.body;
+
+        // Find the class
+        const classroom = await Class.findById(classId);
+        if (!classroom) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        // Create new video object
+        const newVideo = {
+            videoId,
+            name,
+            description,
+            uploadedAt: new Date(),
+        };
+
+        // Push into videos array
+        classroom.videos.push(newVideo);
+
+        // Save class
+        await classroom.save();
+
+        res.status(201).json({
+            message: "Video added successfully",
+            video: newVideo,
+        });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
-  };
+};
+
+// GET /api/classes/:classId/videos
+export const getVideos = async (req, res) => {
+    try {
+        const { classId } = req.params;
+
+        const classroom = await Class.findById(classId).select("videos");
+        if (!classroom) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        res.status(200).json({ videos: classroom.videos });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+
+import { google } from "googleapis";
+
+// DELETE /api/admin/classe/:classId/video/:videoId
+
+export const deleteVideo = async (req, res) => {
+    try {
+        const { classId, videoId } = req.params;
+
+        // ✅ 1. جيب الكلاس
+        const classroom = await Class.findById(classId);
+        if (!classroom) {
+            return res.status(404).json({ message: "Class not found" });
+        }
+
+        // ✅ 2. جيب الفيديو بالـ _id
+        const video = classroom.videos.id(videoId);
+        if (!video) {
+            return res.status(404).json({ message: "Video not found" });
+        }
+
+        // ✅ 3. احذف من YouTube (لو فيه access_token صح)
+        try {
+            const yt_token = req.headers.authorization?.split(" ")[1];
+            if (!yt_token) {
+                console.warn("⚠️ No YouTube access token provided, skipping YouTube delete.");
+            } else {
+                const oauth2Client = new google.auth.OAuth2(
+                    process.env.GOOGLE_CLIENT_ID,
+                    process.env.GOOGLE_CLIENT_SECRET,
+                    process.env.GOOGLE_REDIRECT_URI
+                );
+                oauth2Client.setCredentials({ access_token: yt_token });
+
+                const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+                await youtube.videos.delete({ id: video.videoId });
+
+                console.log(`✅ Video deleted from YouTube: ${video.videoId}`);
+            }
+        } catch (ytErr) {
+            console.error("❌ YouTube Delete Error:", ytErr.response?.data || ytErr.message);
+        }
+
+        // ✅ 4. امسح الفيديو من MongoDB
+        classroom.videos = classroom.videos.filter(
+            (v) => v._id.toString() !== videoId
+        );
+        await classroom.save();
+
+        res.status(200).json({ message: "Video deleted successfully" });
+    } catch (err) {
+        console.error("❌ Error deleting video:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
