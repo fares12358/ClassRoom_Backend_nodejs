@@ -1175,7 +1175,6 @@ export const updateTaskClass = async (req, res) => {
     }
 };
 // ✅ Delete Task
-
 export const deleteTaskClass = async (req, res) => {
     try {
         const { classId, taskId } = req.params;
@@ -1622,3 +1621,44 @@ export const getdashReport = async (req, res) => {
         res.status(500).json({ error: "فشل في جلب البيانات", details: err.message });
     }
 };
+
+export const gethomeReport = async (req, res) => {
+    try {
+        const totalStudents = await Users.countDocuments();
+        // 2️⃣ Earnings
+        const totalEarningsAgg = await Transaction.aggregate([
+            { $match: { status: "succeeded" } },
+            { $group: { _id: null, total: { $sum: "$amount" } } },
+        ]);
+        const totalEarnings = totalEarningsAgg[0]?.total || 0;
+
+        const totalClasses = await Class.countDocuments();
+        const reports = [
+            {
+                title: "إجمالي الطلاب",
+                description: "عدد الطلاب المسجلين.",
+                icon: "FaUsers",
+                value: totalStudents,
+            },
+            {
+                title: "الكلاسات",
+                description: "عدد الكلاسات",
+                icon: "FaChalkboardTeacher",
+                value: totalClasses,
+            },
+            {
+                title: "إجمالي الأرباح",
+                description: "الأرباح المحققة حتى الآن.",
+                icon: "FaDollarSign",
+                value: `$${(totalEarnings / 100).toFixed(2)}`, // assuming amount is in cents
+            },
+        ]
+
+        res.status(200).json({ reports });
+
+
+    } catch (err) {
+        console.error("Get Dashboard Report Error:", err);
+        res.status(500).json({ error: "فشل في جلب البيانات", details: err.message });
+    }
+}
