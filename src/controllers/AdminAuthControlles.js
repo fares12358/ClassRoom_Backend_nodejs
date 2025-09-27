@@ -560,85 +560,85 @@ export const resendPaymentLink = async (req, res) => {
 
 export const deleteClasses = async (req, res) => {
     try {
-      const { id } = req.params;
-  
-      // 1️⃣ Find class
-      const classDoc = await Class.findById(id);
-      if (!classDoc) {
-        return res.status(404).json({ success: false, message: "Class not found" });
-      }
-  
-      // 2️⃣ Delete videos (YouTube if possible)
-      for (const video of classDoc.videos) {
-        try {
-          const yt_token = req.headers.authorization?.split(" ")[1];
-          if (yt_token) {
-            const oauth2Client = new google.auth.OAuth2(
-              process.env.GOOGLE_CLIENT_ID,
-              process.env.GOOGLE_CLIENT_SECRET,
-              process.env.GOOGLE_REDIRECT_URI
-            );
-            oauth2Client.setCredentials({ access_token: yt_token });
-  
-            const youtube = google.youtube({ version: "v3", auth: oauth2Client });
-            await youtube.videos.delete({ id: video.videoId });
-  
-            console.log(`✅ Deleted YouTube video: ${video.videoId}`);
-          }
-        } catch (ytErr) {
-          console.error("❌ YouTube delete error:", ytErr.response?.data || ytErr.message);
+        const { id } = req.params;
+
+        // 1️⃣ Find class
+        const classDoc = await Class.findById(id);
+        if (!classDoc) {
+            return res.status(404).json({ success: false, message: "Class not found" });
         }
-      }
-  
-      // 3️⃣ Delete PDFs from Cloudinary
-      for (const pdf of classDoc.pdfs) {
-        if (pdf.public_id) {
-          await cloudinary.uploader.destroy(pdf.public_id, {
-            resource_type: "raw",
-            type: "private",
-          });
-        }
-      }
-  
-      // 4️⃣ Delete tasks + their submissions from Cloudinary
-      for (const task of classDoc.tasks) {
-        if (task.public_id) {
-          await cloudinary.uploader.destroy(task.public_id, {
-            resource_type: "raw",
-            type: "private",
-          });
-        }
-  
-        if (task.submissions && task.submissions.length > 0) {
-          for (const sub of task.submissions) {
-            if (sub.public_id) {
-              await cloudinary.uploader.destroy(sub.public_id, {
-                resource_type: "raw",
-                type: "private",
-              });
+
+        // 2️⃣ Delete videos (YouTube if possible)
+        for (const video of classDoc.videos) {
+            try {
+                const yt_token = req.headers.authorization?.split(" ")[1];
+                if (yt_token) {
+                    const oauth2Client = new google.auth.OAuth2(
+                        process.env.GOOGLE_CLIENT_ID,
+                        process.env.GOOGLE_CLIENT_SECRET,
+                        process.env.GOOGLE_REDIRECT_URI
+                    );
+                    oauth2Client.setCredentials({ access_token: yt_token });
+
+                    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+                    await youtube.videos.delete({ id: video.videoId });
+
+                    console.log(`✅ Deleted YouTube video: ${video.videoId}`);
+                }
+            } catch (ytErr) {
+                console.error("❌ YouTube delete error:", ytErr.response?.data || ytErr.message);
             }
-          }
         }
-      }
-  
-      // 5️⃣ Remove class reference from all students
-      await Users.updateMany(
-        { classes: id },
-        { $pull: { classes: id } }
-      );
-  
-      // 6️⃣ Finally delete class itself
-      await Class.findByIdAndDelete(id);
-  
-      res.status(200).json({
-        success: true,
-        message: "Class and all related data deleted successfully",
-      });
+
+        // 3️⃣ Delete PDFs from Cloudinary
+        for (const pdf of classDoc.pdfs) {
+            if (pdf.public_id) {
+                await cloudinary.uploader.destroy(pdf.public_id, {
+                    resource_type: "raw",
+                    type: "private",
+                });
+            }
+        }
+
+        // 4️⃣ Delete tasks + their submissions from Cloudinary
+        for (const task of classDoc.tasks) {
+            if (task.public_id) {
+                await cloudinary.uploader.destroy(task.public_id, {
+                    resource_type: "raw",
+                    type: "private",
+                });
+            }
+
+            if (task.submissions && task.submissions.length > 0) {
+                for (const sub of task.submissions) {
+                    if (sub.public_id) {
+                        await cloudinary.uploader.destroy(sub.public_id, {
+                            resource_type: "raw",
+                            type: "private",
+                        });
+                    }
+                }
+            }
+        }
+
+        // 5️⃣ Remove class reference from all students
+        await Users.updateMany(
+            { classes: id },
+            { $pull: { classes: id } }
+        );
+
+        // 6️⃣ Finally delete class itself
+        await Class.findByIdAndDelete(id);
+
+        res.status(200).json({
+            success: true,
+            message: "Class and all related data deleted successfully",
+        });
     } catch (err) {
-      console.error("❌ Error deleting class:", err);
-      res.status(500).json({ success: false, message: "Failed to delete class" });
+        console.error("❌ Error deleting class:", err);
+        res.status(500).json({ success: false, message: "Failed to delete class" });
     }
-  };
+};
 
 
 
@@ -1175,6 +1175,7 @@ export const updateTaskClass = async (req, res) => {
     }
 };
 // ✅ Delete Task
+
 export const deleteTaskClass = async (req, res) => {
     try {
         const { classId, taskId } = req.params;
@@ -1185,30 +1186,33 @@ export const deleteTaskClass = async (req, res) => {
         const task = classDoc.tasks.id(taskId);
         if (!task) return res.status(404).json({ message: "Task not found" });
 
-        // 1️⃣ Delete the task file itself from Cloudinary
-        await cloudinary.uploader.destroy(task.public_id, {
-            resource_type: "raw",
-            type: "private",
-        });
-
-        // 2️⃣ Delete all submission files from Cloudinary
+        // 1️⃣ Delete all submission files first
         if (task.submissions && task.submissions.length > 0) {
-            for (const sub of task.submissions) {
+            const deletePromises = task.submissions.map((sub) => {
                 if (sub.public_id) {
-                    await cloudinary.uploader.destroy(sub.public_id, {
+                    return cloudinary.uploader.destroy(sub.public_id, {
                         resource_type: "raw",
                         type: "private",
                     });
                 }
-            }
+            });
+            await Promise.all(deletePromises);
         }
 
-        // 3️⃣ Remove the task from class
+        // 2️⃣ Delete the task file itself from Cloudinary
+        if (task.public_id) {
+            await cloudinary.uploader.destroy(task.public_id, {
+                resource_type: "raw",
+                type: "private",
+            });
+        }
+
+        // 3️⃣ Remove the task from DB
         task.deleteOne();
         await classDoc.save();
 
         res.status(200).json({
-            message: "Task and its submissions deleted successfully",
+            message: "Task and all its solutions deleted successfully",
             class: classDoc,
         });
     } catch (err) {
@@ -1216,6 +1220,7 @@ export const deleteTaskClass = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
 
 // ✅ Get single Task (24h signed link)
 export const getTaskClass = async (req, res) => {
@@ -1481,5 +1486,139 @@ export const deleteVideo = async (req, res) => {
     } catch (err) {
         console.error("❌ Error deleting video:", err);
         res.status(500).json({ message: err.message });
+    }
+};
+
+
+export const getdashReport = async (req, res) => {
+    try {
+        // 1️⃣ Students
+        const totalStudents = await Users.countDocuments();
+        const activeStudents = await Users.countDocuments({ status: "active" });
+        const inactiveStudents = totalStudents - activeStudents;
+
+        // 2️⃣ Earnings
+        const totalEarningsAgg = await Transaction.aggregate([
+            { $match: { status: "succeeded" } },
+            { $group: { _id: null, total: { $sum: "$amount" } } },
+        ]);
+        const totalEarnings = totalEarningsAgg[0]?.total || 0;
+
+        // 3️⃣ Classes
+        const totalClasses = await Class.countDocuments({ status: "active" });
+
+        // 4️⃣ Plans
+        const totalPlans = await Plan.countDocuments();
+
+        // 5️⃣ Files (PDFs + Tasks)
+        const allClasses = await Class.find();
+        let totalFiles = 0;
+        let totalVideos = 0;
+        let totalTasks = 0;
+        allClasses.forEach((cls) => {
+            totalFiles += cls.pdfs.length;
+            totalVideos += cls.videos.length;
+            totalTasks += cls.tasks.length;
+        });
+
+        // 6️⃣ Additional reports
+        const pendingUsers = await PendingUser.countDocuments();
+        const expiredSubscriptions = await Users.countDocuments({ expiresAt: { $lt: new Date() } });
+        const activeSubscriptions = await Users.countDocuments({ expiresAt: { $gte: new Date() }, status: "active" });
+        const totalTransactions = await Transaction.countDocuments();
+        const failedTransactions = await Transaction.countDocuments({ status: "failed" });
+
+        const reports = [
+            {
+                title: "إجمالي الطلاب",
+                description: "عدد الطلاب المسجلين.",
+                icon: "FaUsers",
+                value: totalStudents,
+            },
+            {
+                title: "الطلاب النشطون",
+                description: "عدد الطلاب المتفاعلين.",
+                icon: "FaUserCheck",
+                value: activeStudents,
+            },
+            {
+                title: "الطلاب غير النشطين",
+                description: "عدد الطلاب غير المتفاعلين.",
+                icon: "FaUserSlash",
+                value: inactiveStudents,
+            },
+            {
+                title: "إجمالي الأرباح",
+                description: "الأرباح المحققة حتى الآن.",
+                icon: "FaDollarSign",
+                value: `$${(totalEarnings / 100).toFixed(2)}`, // assuming amount is in cents
+            },
+            {
+                title: "الكلاسات النشطة",
+                description: "عدد الكلاسات الحالية.",
+                icon: "FaChalkboardTeacher",
+                value: totalClasses,
+            },
+            {
+                title: "الخطط التعليمية",
+                description: "عدد الخطط المتاحة.",
+                icon: "FaClipboardList",
+                value: totalPlans,
+            },
+            {
+                title: "عدد الملفات",
+                description: "إجمالي الملفات المرفوعة.",
+                icon: "FaFileAlt",
+                value: totalFiles,
+            },
+            {
+                title: "عدد الفيديوهات",
+                description: "إجمالي الفيديوهات التعليمية.",
+                icon: "FaVideo",
+                value: totalVideos,
+            },
+            {
+                title: "عدد الأمتحانات",
+                description: "إجمالي المهام المضافة.",
+                icon: "FaTasks",
+                value: totalTasks,
+            },
+            // ➕ Additional reports
+            {
+                title: "الطلاب المنتظرين الدفع",
+                description: "عدد الطلاب الذين لم يتم تفعيل حسابهم بعد.",
+                icon: "FaUserClock",
+                value: pendingUsers,
+            },
+            {
+                title: "الاشتراكات المنتهية",
+                description: "عدد الطلاب الذين انتهت صلاحية اشتراكهم.",
+                icon: "FaHourglassEnd",
+                value: expiredSubscriptions,
+            },
+            {
+                title: "الاشتراكات النشطة",
+                description: "عدد الطلاب المشتركين حالياً.",
+                icon: "FaCheckCircle",
+                value: activeSubscriptions,
+            },
+            {
+                title: "عدد المعاملات",
+                description: "إجمالي المعاملات المالية.",
+                icon: "FaReceipt",
+                value: totalTransactions,
+            },
+            {
+                title: "المعاملات الفاشلة",
+                description: "عدد المعاملات التي لم تكتمل بنجاح.",
+                icon: "FaTimesCircle",
+                value: failedTransactions,
+            },
+        ];
+
+        res.status(200).json({ reports });
+    } catch (err) {
+        console.error("Get Dashboard Report Error:", err);
+        res.status(500).json({ error: "فشل في جلب البيانات", details: err.message });
     }
 };

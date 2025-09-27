@@ -5,7 +5,7 @@ import {
     deleteAdmin, deleteClasses, deleteFilesClass, deleteNoteClasses,
     deleteTaskClass, deleteVideo, forgotAdminPassword, getAdminBYID,
     getAdmins, getAllClasses, getAllFilesClass, getAllStudents, getAllTasksClass,
-    getAllTransactions, getclassByID, getFilesClass, getNotesClasses, getStudentClasses,
+    getAllTransactions, getclassByID, getdashReport, getFilesClass, getNotesClasses, getStudentClasses,
     getTaskClass, getTaskesSubmissions, getTaskSubmissionsAdmin, getVideos, KickStudentClasses, loginAdmin,
     pendingUsers, reloginAdmin, resendPaymentLink, resetAdminPassword, updateAdmin,
     updateClassByID, updateFilesClass, updateNoteClasses, updateTaskClass, uploadVideo
@@ -82,5 +82,6 @@ router.get("/classe/:classId/video", getVideos);
 router.delete("/classe/:classId/video/:videoId", deleteVideo);
 
 
+router.get("/reportes", getdashReport);
 
 export default router;

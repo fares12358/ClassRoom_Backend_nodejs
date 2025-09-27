@@ -368,7 +368,7 @@ export const submitTaskSolution = async (req, res) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: "raw",
-        folder: `classroom/solutions/${classId}/${taskId}`,
+        folder: `classroom/solutions`,
         format: "pdf",
         type: "private",
       },
