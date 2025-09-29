@@ -22,10 +22,11 @@ export const loginAdmin = async (req, res) => {
         if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
         const token = jwt.sign(
-            { id: admin._id, role: admin.role, email: admin.email },
+            { id: admin._id, role: admin.role, status: admin.status, email: admin.email },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
         );
+        
 
         res.status(200).json({
             message: "Admin login successful",

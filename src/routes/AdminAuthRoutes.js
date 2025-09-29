@@ -27,6 +27,10 @@ router.get("/auth/:id", getAdminBYID);
 router.put("/auth/:adminId", updateAdmin);
 router.delete("/auth/:adminId", deleteAdmin);
 
+router.post("/classe/:classId/video", uploadVideo);
+router.delete("/classe/:classId/video/:videoId", deleteVideo);
+
+router.use(authMiddleware);
 //transactions
 router.get("/transactions", getAllTransactions);
 
@@ -77,9 +81,7 @@ router.get("/class/:classId/tasks/submissions", getTaskesSubmissions);
 
 //video
 // Upload video to a class
-router.post("/classe/:classId/video", uploadVideo);
 router.get("/classe/:classId/video", getVideos);
-router.delete("/classe/:classId/video/:videoId", deleteVideo);
 
 //report
 router.get("/reportes", getdashReport);

@@ -1,7 +1,10 @@
 import express from "express";
 import { addPlan, deletePlanById, getAllPlans, getPlanById, updatePlanById } from "../controllers/planController.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+
+router.use(authMiddleware);
 
 // Add a new plan
 router.post("/add", addPlan);
