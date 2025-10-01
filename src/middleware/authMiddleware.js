@@ -21,3 +21,10 @@ export const adminMiddleware = (req, res, next) => {
   }
   next();
 };
+
+export const userActiveMiddleware = (req, res, next) => {
+  if (!req.user || !["active"].includes(req.user.status)) {
+    return res.status(403).json({ message: "active only" });
+  }
+  next();
+};
