@@ -1,10 +1,10 @@
 import express from "express";
 import { getAllFilesClass, getAllTasksForStudent, getFilesClasses, getStudentClasseNote, getStudentClasses, getStudentData, getStudentPlan, getStudentVideoById, getStudentVideos, getTaskForStudent, joinClass, submitTaskSolution, updateStudentData } from "../controllers/StudentControlles.js";
 import upload from "../middleware/multer.js";
-import { userActiveMiddleware } from "../middleware/authMiddleware.js";
+import { userActiveMiddleware, userActiveMiddleware2 } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
-router.use(userActiveMiddleware);
+router.use(userActiveMiddleware2);
 //class
 router.post("/join-class", joinClass);
 router.get("/:studentId/classes", getStudentClasses);

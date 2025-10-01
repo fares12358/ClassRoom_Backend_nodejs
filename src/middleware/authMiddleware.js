@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import Users from "../models/Users.js";
 
 // Verify JWT
 export const authMiddleware = async (req, res, next) => {
@@ -27,4 +28,34 @@ export const userActiveMiddleware = (req, res, next) => {
     return res.status(403).json({ message: "active only" });
   }
   next();
+};
+
+
+export const userActiveMiddleware2 = async (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ message: "Unauthorized" });
+
+  try {
+    // Verify and decode the JWT
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Get user from MongoDB using ID from token
+    const user = await Users.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check user status from DB
+    if (user.status === "pending") {
+      return res.status(403).json({ message: "Account pending approval" });
+    }
+    
+
+    // Attach fresh user object to request
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error(err);
+    res.status(401).json({ message: "Invalid token" });
+  }
 };
