@@ -4,12 +4,12 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.use(authMiddleware);
+router.get("/", getAllPlans);
 
+router.use(authMiddleware);
 // Add a new plan
 router.post("/add", addPlan);
 // Get all plans
-router.get("/", getAllPlans);
 // Get plan by ID
 router.get("/:id", getPlanById);
 router.put("/:id", updatePlanById);

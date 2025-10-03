@@ -50,7 +50,6 @@ export const userActiveMiddleware2 = async (req, res, next) => {
       return res.status(403).json({ message: "Account pending approval" });
     }
     
-
     // Attach fresh user object to request
     req.user = user;
     next();
