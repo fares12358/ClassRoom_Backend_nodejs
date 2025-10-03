@@ -23,15 +23,8 @@ export const adminMiddleware = (req, res, next) => {
   next();
 };
 
-export const userActiveMiddleware = (req, res, next) => {
-  if (!req.user || !["active"].includes(req.user.status)) {
-    return res.status(403).json({ message: "active only" });
-  }
-  next();
-};
 
-
-export const userActiveMiddleware2 = async (req, res, next) => {
+export const userActiveMiddleware = async (req, res, next) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ message: "Unauthorized" });
 

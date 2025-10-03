@@ -10,10 +10,12 @@ const userSchema = new mongoose.Schema({
   accessToken: { type: String },
   createdAt: { type: Date, default: Date.now },
   expiresAt: { type: Date },
-  resetOTP: { type: String },          // ✅ store OTP
+  resetOTP: { type: String },// ✅ store OTP
   resetOTPExpires: { type: Date },
   classes: [{ type: mongoose.Schema.Types.ObjectId, ref: "Class" }],
-  deviceToken: { type: String, default: null } // ✅ track active device/session
+  deviceToken: { type: String, default: null }, // ✅ track active device/session
+  warning7Sent: { type: Boolean, default: false },
+  warning1Sent: { type: Boolean, default: false },
 });
 
 export default mongoose.model("User", userSchema);

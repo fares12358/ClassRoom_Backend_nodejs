@@ -31,6 +31,7 @@ router.post("/classe/:classId/video", uploadVideo);
 router.delete("/classe/:classId/video/:videoId", deleteVideo);
 
 router.use(authMiddleware);
+
 //transactions
 router.get("/transactions", getAllTransactions);
 
