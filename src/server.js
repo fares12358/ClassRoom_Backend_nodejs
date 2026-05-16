@@ -14,7 +14,7 @@ connectDB();
 
 const app = express();
 
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: "https://dashboard-classroom.vercel.app" }));
 
 // Stripe webhook needs raw body
 app.use("/api/payment/webhook", bodyParser.raw({ type: "application/json" }));
