@@ -8,6 +8,8 @@ import PaymentRoutes from "./routes/paymentRoutes.js";
 import planRoutes from "./routes/planRoutes.js";
 import AdminAuthRoutes from "./routes/AdminAuthRoutes.js";
 import StudentRoutes from "./routes/StudentRoutes.js";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 connectDB();
@@ -30,6 +32,14 @@ app.use("/api/payment", PaymentRoutes);
 app.use("/api/plans", planRoutes);
 app.use("/api/admin", AdminAuthRoutes);
 app.use("/api/student", StudentRoutes);
+
+// Serve API documentation
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use("/api/docs", express.static(path.join(__dirname, "docs")));
+app.get("/api/docs", (req, res) => {
+  res.sendFile(path.join(__dirname, "docs", "docs.html"));
+});
 
 app.get("/", (req, res) => res.send("🚀 Backend running!"));
 
