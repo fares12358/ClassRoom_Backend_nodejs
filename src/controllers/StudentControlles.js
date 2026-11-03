@@ -1,4 +1,5 @@
 import cloudinary from "../config/cloudinary.js";
+import { joinCodesMatch } from "../utils/joinCode.js";
 import Class from "../models/Class.js";
 import Plan from "../models/Plan.js";
 import Users from "../models/Users.js";
@@ -6,13 +7,22 @@ import bcrypt from "bcryptjs";
 
 export const joinClass = async (req, res) => {
   try {
-    const { classId, studentId } = req.body;
-
+    const { classId, joinCode } = req.body;
+    // Always the authenticated student; any studentId in the body is ignored.
+    const studentId = String(req.user._id);
     const student = await Users.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
     const classObj = await Class.findById(classId);
 
-    if (!classObj) {
+    if (!classObj || classObj.status !== "active") {
       return res.status(404).json({ message: "Class not found" });
+    }
+
+    // Students must present the class's join code (legacy classes without one cannot be joined until an admin generates it)
+    if (!joinCodesMatch(classObj.joinCode, joinCode)) {
+      return res.status(403).json({ message: "Invalid join code" });
     }
 
     // Add class to student
@@ -27,7 +37,7 @@ export const joinClass = async (req, res) => {
       await classObj.save();
     }
 
-    res.json({ message: "Successfully joined the class", class: classObj });
+    res.json({ message: "Successfully joined the class", class: { _id: classObj._id, name: classObj.name, description: classObj.description, status: classObj.status } });
   } catch (error) {
     console.error("Error joining class:", error);
     res.status(500).json({ message: "Server error" });
@@ -117,7 +127,11 @@ export const updateStudentData = async (req, res) => {
     // Update only provided fields
     if (name) user.name = name;
     if (phone) user.phone = phone;
-    if (email) user.email = email;
+    if (email && email !== user.email) {
+      const taken = await Users.findOne({ email, _id: { $ne: user._id } }).select("_id");
+      if (taken) return res.status(409).json({ message: "Email already in use" });
+      user.email = email;
+    }
 
     if (password) {
       // Hash the new password before saving

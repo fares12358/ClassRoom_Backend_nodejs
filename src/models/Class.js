@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { generateJoinCode } from "../utils/joinCode.js";
 
 
 const pdfSchema = new mongoose.Schema({
@@ -32,6 +33,7 @@ const classSchema = new mongoose.Schema({
     tasks: [pdfSchema],  // task descriptions
     createdAt: { type: Date, default: Date.now },
     status: { type: String, enum: ["active", "pending"], default: "pending" },
+    joinCode: { type: String, default: generateJoinCode }, // students must present this to join
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // assigned students
     notes: [
         {

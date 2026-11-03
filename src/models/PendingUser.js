@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const pendingUserSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  email: { type: String, required: true },
+  email: { type: String, required: true, lowercase: true, trim: true },
   phone: { type: String },
   password: { type: String, required: true },
   planId: { type: mongoose.Schema.Types.ObjectId, ref: "Plan", required: true },

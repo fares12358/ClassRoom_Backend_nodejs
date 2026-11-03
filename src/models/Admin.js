@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const adminSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   phone: { type: String },
   password: { type: String, required: true },
   role: { type: String, enum: ["admin", "super-admin"], default: "admin" },
@@ -10,6 +10,7 @@ const adminSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   resetOTP: { type: String },
   resetOTPExpires: { type: Date },
+  resetOTPAttempts: { type: Number, default: 0 },
   settings: { type: Object },
 });
 

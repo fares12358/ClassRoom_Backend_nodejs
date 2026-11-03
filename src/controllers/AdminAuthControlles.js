@@ -7,8 +7,9 @@ import Users from "../models/Users.js";
 import Plan from "../models/Plan.js";
 import Class from "../models/Class.js";
 import PendingUser from "../models/PendingUser.js";
+import { issueResetOtp, consumeResetOtp } from "../utils/otp.js";
 import cloudinary from "../config/cloudinary.js";
-import { google } from "googleapis";
+
 
 // Admin login
 export const loginAdmin = async (req, res) => {
@@ -17,6 +18,7 @@ export const loginAdmin = async (req, res) => {
 
         const admin = await Admin.findOne({ email });
         if (!admin) return res.status(401).json({ message: "Invalid credentials" });
+        if (admin.status === "inactive") return res.status(403).json({ message: "Account disabled" });
 
         const isMatch = await bcrypt.compare(password, admin.password);
         if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
@@ -24,7 +26,7 @@ export const loginAdmin = async (req, res) => {
         const token = jwt.sign(
             { id: admin._id, role: admin.role, status: admin.status, email: admin.email },
             process.env.JWT_SECRET,
-            { expiresIn: "7d" }
+            { expiresIn: process.env.ADMIN_JWT_EXPIRES || "1d" }
         );
         
 
@@ -83,7 +85,8 @@ export const addAdmin = async (req, res) => {
         });
 
         await admin.save();
-        res.status(201).json({ message: "Admin added successfully", admin });
+        const { password: _pw, resetOTP: _otp, ...safeAdmin } = admin.toObject();
+        res.status(201).json({ message: "Admin added successfully", admin: safeAdmin });
     } catch (error) {
         res.status(500).json({ message: "Error adding admin", error: error.message });
     }
@@ -158,58 +161,49 @@ export const deleteAdmin = async (req, res) => {
     }
 };
 export const forgotAdminPassword = async (req, res) => {
-    const { email } = req.body;
-
+    // Same response whether or not the account exists (no user enumeration)
+    const generic = { message: "If the email is registered, an OTP has been sent" };
     try {
-        const admin = await Admin.findOne({ email });
-        if (!admin) return res.status(404).json({ message: "Admin not found" });
+        const email = String(req.body?.email ?? "");
+        const admin = email ? await Admin.findOne({ email }) : null;
 
-        // Generate OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
-        const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        if (admin) {
+            const otp = issueResetOtp(admin);
+            await admin.save();
 
-        admin.resetOTP = otp;
-        admin.resetOTPExpires = expiry;
-        await admin.save();
-
-        const encodedEmail = encodeURIComponent(admin.email);
-        const resetLink = `${process.env.FRONTEND_URL}/Pages/Auth/reset-password/${encodedEmail}/${otp}`;
-
-        await sendOTPEmail(admin, otp, resetLink);
-
-        res.json({ message: "OTP sent to your email" });
+            const encodedEmail = encodeURIComponent(admin.email);
+            const resetLink = `${process.env.FRONTEND_URL}/Pages/Auth/reset-password/${encodedEmail}/${otp}`;
+            await sendOTPEmail(admin, otp, resetLink);
+        }
+        res.json(generic);
     } catch (err) {
-        res.status(500).json({ message: "Failed to send OTP", error: err.message });
+        console.error("forgotAdminPassword error:", err.message);
+        res.status(500).json({ message: "Failed to send OTP" });
     }
 };
 // --- Reset Password ---
 export const resetAdminPassword = async (req, res) => {
-    const { email, otp, newPassword } = req.body;
-
     try {
+        const email = String(req.body?.email ?? "");
+        const otp = String(req.body?.otp ?? "");
+        const newPassword = req.body?.newPassword;
+        if (!email || !otp || typeof newPassword !== "string" || newPassword.length < 8) {
+            return res.status(400).json({ message: "Invalid request (password must be at least 8 characters)" });
+        }
+
         const admin = await Admin.findOne({ email });
+        const ok = consumeResetOtp(admin, otp);
+        if (admin) await admin.save(); // persists attempt count / clearing
 
-        if (!admin || !admin.resetOTP || !admin.resetOTPExpires)
-            return res.status(400).json({ message: "Invalid or expired OTP" });
+        if (!ok) return res.status(400).json({ message: "Invalid or expired OTP" });
 
-        if (admin.resetOTP !== otp)
-            return res.status(400).json({ message: "Incorrect OTP" });
-
-        if (admin.resetOTPExpires < new Date())
-            return res.status(400).json({ message: "OTP expired" });
-
-        // Hash new password
         admin.password = await bcrypt.hash(newPassword, 10);
-
-        // Clear OTP
-        admin.resetOTP = null;
-        admin.resetOTPExpires = null;
-
         await admin.save();
 
         res.json({ message: "Password reset successful" });
     } catch (err) {
-        res.status(500).json({ message: "Password reset failed", error: err.message });
+        console.error("resetAdminPassword error:", err.message);
+        res.status(500).json({ message: "Password reset failed" });
     }
 };
 // Get all transactions (admin)
@@ -447,6 +441,7 @@ export const getclassByID = async (req, res) => {
             status: classData.status,
             createdAt: classData.createdAt,
             studentsCount: classData.students ? classData.students.length : 0,
+            joinCode: classData.joinCode || null,
         };
 
         res.status(200).json(response);
@@ -559,92 +554,6 @@ export const resendPaymentLink = async (req, res) => {
 };
 
 
-export const deleteClasses = async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        // 1️⃣ Find class
-        const classDoc = await Class.findById(id);
-        if (!classDoc) {
-            return res.status(404).json({ success: false, message: "Class not found" });
-        }
-
-        // 2️⃣ Delete videos (YouTube if possible)
-        for (const video of classDoc.videos) {
-            try {
-                const yt_token = req.headers.authorization?.split(" ")[1];
-                if (yt_token) {
-                    const oauth2Client = new google.auth.OAuth2(
-                        process.env.GOOGLE_CLIENT_ID,
-                        process.env.GOOGLE_CLIENT_SECRET,
-                        process.env.GOOGLE_REDIRECT_URI
-                    );
-                    oauth2Client.setCredentials({ access_token: yt_token });
-
-                    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
-                    await youtube.videos.delete({ id: video.videoId });
-
-                    console.log(`✅ Deleted YouTube video: ${video.videoId}`);
-                }
-            } catch (ytErr) {
-                console.error("❌ YouTube delete error:", ytErr.response?.data || ytErr.message);
-            }
-        }
-
-        // 3️⃣ Delete PDFs from Cloudinary
-        for (const pdf of classDoc.pdfs) {
-            if (pdf.public_id) {
-                await cloudinary.uploader.destroy(pdf.public_id, {
-                    resource_type: "raw",
-                    type: "private",
-                });
-            }
-        }
-
-        // 4️⃣ Delete tasks + their submissions from Cloudinary
-        for (const task of classDoc.tasks) {
-            if (task.public_id) {
-                await cloudinary.uploader.destroy(task.public_id, {
-                    resource_type: "raw",
-                    type: "private",
-                });
-            }
-
-            if (task.submissions && task.submissions.length > 0) {
-                for (const sub of task.submissions) {
-                    if (sub.public_id) {
-                        await cloudinary.uploader.destroy(sub.public_id, {
-                            resource_type: "raw",
-                            type: "private",
-                        });
-                    }
-                }
-            }
-        }
-
-        // 5️⃣ Remove class reference from all students
-        await Users.updateMany(
-            { classes: id },
-            { $pull: { classes: id } }
-        );
-
-        // 6️⃣ Finally delete class itself
-        await Class.findByIdAndDelete(id);
-
-        res.status(200).json({
-            success: true,
-            message: "Class and all related data deleted successfully",
-        });
-    } catch (err) {
-        console.error("❌ Error deleting class:", err);
-        res.status(500).json({ success: false, message: "Failed to delete class" });
-    }
-};
-
-
-
-// class matrial
-//notes
 export const addNoteClasses = async (req, res) => {
     const { id } = req.params;      // class id
     const { msg } = req.body;       // message text
@@ -1437,58 +1346,6 @@ export const getVideos = async (req, res) => {
     }
 };
 // DELETE /api/admin/classe/:classId/video/:videoId
-
-export const deleteVideo = async (req, res) => {
-    try {
-        const { classId, videoId } = req.params;
-
-        // ✅ 1. جيب الكلاس
-        const classroom = await Class.findById(classId);
-        if (!classroom) {
-            return res.status(404).json({ message: "Class not found" });
-        }
-
-        // ✅ 2. جيب الفيديو بالـ _id
-        const video = classroom.videos.id(videoId);
-        if (!video) {
-            return res.status(404).json({ message: "Video not found" });
-        }
-
-        // ✅ 3. احذف من YouTube (لو فيه access_token صح)
-        try {
-            const yt_token = req.headers.authorization?.split(" ")[1];
-            if (!yt_token) {
-                console.warn("⚠️ No YouTube access token provided, skipping YouTube delete.");
-            } else {
-                const oauth2Client = new google.auth.OAuth2(
-                    process.env.GOOGLE_CLIENT_ID,
-                    process.env.GOOGLE_CLIENT_SECRET,
-                    process.env.GOOGLE_REDIRECT_URI
-                );
-                oauth2Client.setCredentials({ access_token: yt_token });
-
-                const youtube = google.youtube({ version: "v3", auth: oauth2Client });
-                await youtube.videos.delete({ id: video.videoId });
-
-                console.log(`✅ Video deleted from YouTube: ${video.videoId}`);
-            }
-        } catch (ytErr) {
-            console.error("❌ YouTube Delete Error:", ytErr.response?.data || ytErr.message);
-        }
-
-        // ✅ 4. امسح الفيديو من MongoDB
-        classroom.videos = classroom.videos.filter(
-            (v) => v._id.toString() !== videoId
-        );
-        await classroom.save();
-
-        res.status(200).json({ message: "Video deleted successfully" });
-    } catch (err) {
-        console.error("❌ Error deleting video:", err);
-        res.status(500).json({ message: err.message });
-    }
-};
-
 
 export const getdashReport = async (req, res) => {
     try {

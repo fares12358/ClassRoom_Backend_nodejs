@@ -2,9 +2,10 @@ import bcrypt from "bcrypt";
 import User from "../models/Users.js";
 import PendingUser from "../models/PendingUser.js";
 import Plan from "../models/Plan.js";
-import { generateAccessToken } from "../utils/tokens.js";
+import { generateAccessToken, generateRenewToken } from "../utils/tokens.js";
 import { sendOTPEmail } from "./emailController.js";
 import { v4 as uuidv4 } from "uuid";
+import { issueResetOtp, consumeResetOtp } from "../utils/otp.js";
 /**
  * Create pending user before payment
  */
@@ -30,7 +31,7 @@ export const createPendingUser = async (req, res) => {
 export const getPendingUser = async (req, res) => {
   try {
     const { pendingId } = req.params;
-    const pendingUser = await PendingUser.findById(pendingId).populate("planId");
+    const pendingUser = await PendingUser.findById(pendingId).select("-password").populate("planId");
 
     if (!pendingUser) {
       return res.status(404).json({ message: "Pending payment not found" });
@@ -53,6 +54,7 @@ export const getSignupStatus = async (req, res) => {
     if (pending) return res.json({ status: "pending", plan: pending.planId });
 
     const user = await User.findById(id);
+    if (!user) return res.json({ status: "not_found" });
     if (user.status == 'active') return res.json({ status: user.status, user: { id: user._id, email: user.email } });
 
     res.json({ status: "not_found" });
@@ -78,7 +80,7 @@ export const loginUser = async (req, res) => {
     if (user.expiresAt && new Date() > user.expiresAt) {
       user.status = "pending"; // expire account
       await user.save();
-      return res.status(403).json({ message: "Subscription expired" });
+      return res.status(403).json({ message: "Subscription expired", renewToken: generateRenewToken(user) });
     }
 
     // Check if user already logged in on another device
@@ -119,7 +121,7 @@ export const loginUser = async (req, res) => {
 
 export const logoutUser = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = req.user.userId; // from the verified token, not the body
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -135,56 +137,48 @@ export const logoutUser = async (req, res) => {
 
 
 export const forgotPassword = async (req, res) => {
-  const { email } = req.body;
-
+  // Same response whether or not the account exists (no user enumeration)
+  const generic = { message: "If the email is registered, an OTP has been sent" };
   try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const email = String(req.body?.email ?? "");
+    const user = email ? await User.findOne({ email }) : null;
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
-    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    user.resetOTP = otp;
-    user.resetOTPExpires = expiry;
-    await user.save();
-    const encodedEmail = encodeURIComponent(user.email);
-    const resetLink = `${process.env.FRONTEND_URL}/Pages/Auth/App/reset-password/${encodedEmail}/${otp}`;
-
-    await sendOTPEmail(user,otp,resetLink);
-
-    res.json({ message: "OTP sent to your email" });
+    if (user) {
+      const otp = issueResetOtp(user);
+      await user.save();
+      const encodedEmail = encodeURIComponent(user.email);
+      const resetLink = `${process.env.FRONTEND_URL}/Pages/Auth/App/reset-password/${encodedEmail}/${otp}`;
+      await sendOTPEmail(user, otp, resetLink);
+    }
+    res.json(generic);
   } catch (error) {
-    res.status(500).json({ message: "Error sending OTP", error: error.message });
+    console.error("forgotPassword error:", error.message);
+    res.status(500).json({ message: "Error sending OTP" });
   }
 };
 
 export const resetPassword = async (req, res) => {
-  const { email, otp, newPassword } = req.body;
-
   try {
+    const email = String(req.body?.email ?? "");
+    const otp = String(req.body?.otp ?? "");
+    const newPassword = req.body?.newPassword;
+    if (!email || !otp || typeof newPassword !== "string" || newPassword.length < 8) {
+      return res.status(400).json({ message: "Invalid request (password must be at least 8 characters)" });
+    }
+
     const user = await User.findOne({ email });
+    const ok = consumeResetOtp(user, otp);
+    if (user) await user.save(); // persists attempt count / clearing
 
-    if (!user || !user.resetOTP || !user.resetOTPExpires)
-      return res.status(400).json({ message: "Invalid or expired OTP" });
+    if (!ok) return res.status(400).json({ message: "Invalid or expired OTP" });
 
-    if (user.resetOTP !== otp)
-      return res.status(400).json({ message: "Incorrect OTP" });
-
-    if (user.resetOTPExpires < new Date())
-      return res.status(400).json({ message: "OTP expired" });
-
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
-
-    // Clear OTP
-    user.resetOTP = null;
-    user.resetOTPExpires = null;
-
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.deviceToken = null; // force a fresh login on the new password
     await user.save();
 
     res.json({ message: "Password reset successful" });
   } catch (error) {
-    res.status(500).json({ message: "Reset failed", error: error.message });
+    console.error("resetPassword error:", error.message);
+    res.status(500).json({ message: "Reset failed" });
   }
 };
-

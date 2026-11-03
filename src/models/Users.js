@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   phone: { type: String },
   password: { type: String, required: true },
   plan: { type: mongoose.Schema.Types.ObjectId, ref: "Plan" },
@@ -12,6 +12,7 @@ const userSchema = new mongoose.Schema({
   expiresAt: { type: Date },
   resetOTP: { type: String },// ✅ store OTP
   resetOTPExpires: { type: Date },
+  resetOTPAttempts: { type: Number, default: 0 },
   classes: [{ type: mongoose.Schema.Types.ObjectId, ref: "Class" }],
   deviceToken: { type: String, default: null }, // ✅ track active device/session
   warning7Sent: { type: Boolean, default: false },

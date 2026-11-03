@@ -71,15 +71,36 @@ export const stripeWebhook = async (req, res) => {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
 
+      // Delayed payment methods: only fulfil once actually paid
+      if (session.payment_status && session.payment_status !== "paid") {
+        return res.status(200).json({ received: true, skipped: "not paid" });
+      }
+
       // Metadata can contain either pendingId OR (userId + planId)
       const { pendingId, userId, planId } = session.metadata || {};
 
       // ⚡ Case 1: NEW USER SIGNUP (from PendingUser)
       if (pendingId) {
         const pendingUser = await PendingUser.findById(pendingId).populate("planId");
-        if (!pendingUser) return res.sendStatus(404);
+        if (!pendingUser) {
+          // Duplicate delivery of an already-processed event
+          if (await User.exists({ _id: pendingId })) return res.status(200).json({ received: true, duplicate: true });
+          console.error("Webhook: paid session for unknown pendingId", pendingId);
+          return res.sendStatus(404);
+        }
 
         const plan = pendingUser.planId;
+
+        // Retry after a partial failure: user exists but pending/transaction cleanup did not finish
+        if (await User.exists({ _id: pendingUser._id })) {
+          await Transaction.findOneAndUpdate(
+            { stripeSessionId: session.id },
+            { pendingUser: pendingUser._id, user: pendingUser._id, plan: plan._id, stripePaymentId: session.payment_intent, amount: plan.price, currency: "usd", checkoutUrl: session.url, status: "succeeded" },
+            { upsert: true }
+          );
+          await PendingUser.findByIdAndDelete(pendingId);
+          return res.status(200).json({ received: true, recovered: true });
+        }
 
         // Calculate expiration date
         let expiresAt = new Date();
@@ -114,7 +135,7 @@ export const stripeWebhook = async (req, res) => {
         await newUser.save();
 
         // ✅ Create transaction for pending user
-        await Transaction.create({
+        if (!(await Transaction.exists({ stripeSessionId: session.id }))) await Transaction.create({
           pendingUser: pendingUser._id,
           user: newUser._id,
           plan: plan._id,
@@ -238,10 +259,11 @@ export const retryPayment = async (req, res) => {
 // re subscription
 export const manageSubscription = async (req, res) => {
   try {
-    const { userId, planId } = req.body;
+    const { planId } = req.body;
+    const userId = req.user.userId; // from the verified token, not the body
 
-    if (!userId || !planId) {
-      return res.status(400).json({ error: "userId and planId are required" });
+    if (!planId) {
+      return res.status(400).json({ error: "planId is required" });
     }
 
     // 1. Find user and plan
@@ -285,15 +307,7 @@ export const manageSubscription = async (req, res) => {
       success_url: `${process.env.FRONTEND_URL}/Pages/success?id=${user._id}`,
       cancel_url: `${process.env.FRONTEND_URL}/Pages/cancel?id=${user._id}`,
     });
-
-
-
-    // 5. Update user as pending
-    user.plan = plan._id;
-    user.status = "pending";
-    user.expiresAt = null; // will be set in webhook
-    await user.save();
-
+    // The user is NOT modified here; the webhook sets plan/status/expiresAt once payment succeeds.
     await sendPendingPaymentEmail(user, session.url);
 
     res.json({ url: session.url });

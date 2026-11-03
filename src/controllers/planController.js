@@ -1,4 +1,6 @@
 import Plan from "../models/Plan.js";
+import Users from "../models/Users.js";
+import PendingUser from "../models/PendingUser.js";
 import Stripe from "stripe";
 import dotenv from "dotenv";
 
@@ -127,6 +129,11 @@ export const deletePlanById = async (req, res) => {
 
     const plan = await Plan.findById(id);
     if (!plan) return res.status(404).json({ message: "Plan not found" });
+
+    const inUse = (await Users.exists({ plan: id })) || (await PendingUser.exists({ planId: id }));
+    if (inUse) {
+      return res.status(409).json({ message: "Plan is in use by students or pending signups and cannot be deleted" });
+    }
 
     // Optional: Delete the price from Stripe if stripePriceId exists
     if (plan.stripePriceId) {
